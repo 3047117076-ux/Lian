@@ -1,7 +1,7 @@
 /**
  * Service Worker — PWA offline support
  */
-const CACHE_NAME = 'bunny-elliott-v1';
+const CACHE_NAME = 'lian-v3';
 const ASSETS = [
   '/',
   '/index.html',
