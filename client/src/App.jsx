@@ -21,6 +21,7 @@ function App() {
     newSession,
     removeSession,
     sendMessage,
+    regenerateLastReply,
   } = useChat();
 
   const [showSettings, setShowSettings] = useState(false);
