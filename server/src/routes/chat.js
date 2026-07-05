@@ -349,12 +349,14 @@ router.patch('/edit-message', async (req, res) => {
       created_at: new Date().toISOString(),
     });
 
-    // Also hide assistant messages that came after this user message
-    await supabase.from('messages').update({ visible: false })
-      .eq('session_id', old.session_id)
-      .eq('role', 'assistant')
-      .eq('visible', true)
-      .gt('created_at', old.created_at);
+    // Only hide the first AI reply directly after this message
+    const { data: nextAsst } = await supabase.from('messages')
+      .select('id').eq('session_id', old.session_id).eq('role', 'assistant')
+      .eq('visible', true).gt('created_at', old.created_at)
+      .order('created_at', { ascending: true }).limit(1);
+    if (nextAsst?.length > 0) {
+      await supabase.from('messages').update({ visible: false }).eq('id', nextAsst[0].id);
+    }
 
     res.json({ id: newId, content: newContent, versionGroup, replyVersion: nextVersion });
   } catch (err) {
