@@ -105,6 +105,7 @@ async function* streamOpenAICompatible(systemPrompt, messages, settings = {}) {
 
   let fullContent = '';
   let fullReasoning = '';
+  let usage = null;
 
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta;
@@ -116,9 +117,12 @@ async function* streamOpenAICompatible(systemPrompt, messages, settings = {}) {
       fullReasoning += delta.reasoning_content;
       yield { type: 'thinking', text: delta.reasoning_content };
     }
+    if (chunk.usage) {
+      usage = chunk.usage;
+    }
   }
 
-  yield { type: 'done', content: fullContent, reasoning: fullReasoning };
+  yield { type: 'done', content: fullContent, reasoning: fullReasoning, usage };
 }
 
 // --- Model name mapping ---

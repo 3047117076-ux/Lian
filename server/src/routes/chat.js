@@ -69,6 +69,7 @@ router.post('/send', async (req, res) => {
     // Stream AI response
     let fullContent = '';
     let fullReasoning = '';
+    let tokenUsage = null;
 
     const aiSettings = {
       ...settings,
@@ -88,6 +89,7 @@ router.post('/send', async (req, res) => {
       } else if (chunk.type === 'done') {
         fullContent = chunk.content;
         fullReasoning = chunk.reasoning;
+        if (chunk.usage) tokenUsage = chunk.usage;
         break;
       }
     }
@@ -103,6 +105,7 @@ router.post('/send', async (req, res) => {
       visible: true,
       reply_to: userMsgId,
       reply_version: 0,
+      usage: tokenUsage,
       created_at: new Date().toISOString(),
     });
 
@@ -283,6 +286,52 @@ router.patch('/delete-message', async (req, res) => {
     const { error } = await supabase.from('messages').update({ visible: false }).eq('id', messageId);
     if (error) throw error;
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/chat/usage/:sessionId
+ * Get token usage summary for a session
+ */
+router.get('/usage/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    const { data, error } = await supabase
+      .from('messages')
+      .select('usage, created_at')
+      .eq('session_id', sessionId)
+      .eq('role', 'assistant')
+      .not('usage', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) throw error;
+
+    // Aggregate usage
+    let totalPrompt = 0, totalCompletion = 0, totalTokens = 0;
+    const daily = {};
+    for (const msg of (data || [])) {
+      if (msg.usage) {
+        totalPrompt += msg.usage.prompt_tokens || 0;
+        totalCompletion += msg.usage.completion_tokens || 0;
+        totalTokens += msg.usage.total_tokens || 0;
+        const day = (msg.created_at || '').substring(0, 10);
+        if (!daily[day]) daily[day] = { prompt: 0, completion: 0, total: 0, count: 0 };
+        daily[day].prompt += msg.usage.prompt_tokens || 0;
+        daily[day].completion += msg.usage.completion_tokens || 0;
+        daily[day].total += msg.usage.total_tokens || 0;
+        daily[day].count++;
+      }
+    }
+
+    res.json({
+      totalPrompt, totalCompletion, totalTokens,
+      requestCount: data?.length || 0,
+      daily,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
