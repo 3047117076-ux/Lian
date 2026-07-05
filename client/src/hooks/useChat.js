@@ -108,15 +108,26 @@ export default function useChat() {
         } else if (chunk.type === 'done') {
           fullContent = chunk.content || fullContent;
           fullReasoning = chunk.reasoning || fullReasoning;
-          const assistantMsg = {
-            id: chunk.messageId || 'msg-' + Date.now(),
-            session_id: currentSessionId,
-            role: 'assistant',
-            content: fullContent,
-            reasoning_content: fullReasoning,
-            created_at: new Date().toISOString(),
-          };
-          setMessages(prev => [...prev, assistantMsg]);
+          const ids = chunk.multiParts || [chunk.messageId || 'msg-' + Date.now()];
+          // If multiParts, split content
+          if (chunk.multiParts && chunk.multiParts.length > 1) {
+            const msgs = fullContent.split(/\n?---\n?/).filter(p => p.trim()).map((c, i) => ({
+              id: ids[i] || 'msg-' + Date.now() + '-' + i,
+              session_id: currentSessionId,
+              role: 'assistant',
+              content: c.trim(),
+              reasoning_content: i === 0 ? fullReasoning : null,
+              created_at: new Date(Date.now() + i * 100).toISOString(),
+            }));
+            setMessages(prev => [...prev, ...msgs]);
+          } else {
+            setMessages(prev => [...prev, {
+              id: chunk.messageId || 'msg-' + Date.now(),
+              session_id: currentSessionId, role: 'assistant',
+              content: fullContent, reasoning_content: fullReasoning,
+              created_at: new Date().toISOString(),
+            }]);
+          }
         } else if (chunk.type === 'error') {
           console.error('Stream error:', chunk.message);
           break;

@@ -94,22 +94,27 @@ router.post('/send', async (req, res) => {
       }
     }
 
-    // Save assistant message
-    const assistantMsgId = uuidv4();
-    await supabase.from('messages').insert({
-      id: assistantMsgId,
-      session_id: sessionId,
-      role: 'assistant',
-      content: fullContent,
-      reasoning_content: fullReasoning || null,
-      visible: true,
-      reply_to: userMsgId,
-      reply_version: 0,
-      usage: tokenUsage,
-      created_at: new Date().toISOString(),
-    });
+    // Save assistant message(s) — split on --- for multi-bubble
+    const parts = fullContent.split(/\n?---\n?/).filter(p => p.trim());
+    const msgIds = [];
+    for (let i = 0; i < parts.length; i++) {
+      const msgId = uuidv4();
+      await supabase.from('messages').insert({
+        id: msgId,
+        session_id: sessionId,
+        role: 'assistant',
+        content: parts[i].trim(),
+        reasoning_content: i === 0 ? (fullReasoning || null) : null,
+        visible: true,
+        reply_to: userMsgId,
+        reply_version: i,
+        usage: i === 0 ? tokenUsage : null,
+        created_at: new Date(Date.now() + i * 100).toISOString(),
+      });
+      msgIds.push(msgId);
+    }
 
-    res.write(`data: ${JSON.stringify({ type: 'done', messageId: assistantMsgId })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'done', messageId: msgIds[0], multiParts: msgIds })}\n\n`);
     res.end();
 
     // Check if compression is needed (async, don't block response)
