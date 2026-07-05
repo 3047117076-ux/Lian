@@ -39,6 +39,7 @@ router.put('/:sessionId', async (req, res) => {
       'system_prompt', 'temperature', 'max_context_rounds',
       'max_context_tokens', 'compress_threshold', 'compress_keep_rounds',
       'max_reply_tokens', 'provider',
+      'user_avatar', 'assistant_avatar', 'background_image',
     ];
 
     const filtered = {};

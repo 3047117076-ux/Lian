@@ -14,6 +14,9 @@ export default function ChatArea({
   onLoadMore,
   onRegenerate,
   onSend,
+  userAvatar,
+  assistantAvatar,
+  backgroundImage,
 }) {
   const [input, setInput] = useState('');
   const [provider, setProvider] = useState('openai');
@@ -48,8 +51,12 @@ export default function ChatArea({
     );
   }
 
+  const bgStyle = backgroundImage
+    ? { backgroundImage: `url(${backgroundImage})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }
+    : {};
+
   return (
-    <div className="chat-area">
+    <div className="chat-area" style={bgStyle}>
       <div className="chat-header">
         <select
           value={model}
@@ -69,7 +76,7 @@ export default function ChatArea({
           </button>
         )}
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
+          <MessageBubble key={msg.id} message={msg} avatar={msg.role === 'user' ? userAvatar : assistantAvatar} />
         ))}
 
         {/* Thinking indicator */}
@@ -132,13 +139,20 @@ export default function ChatArea({
 /**
  * MessageBubble — individual message display
  */
-function MessageBubble({ message }) {
+const defaultUserSvg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="#2a2a2a" width="100" height="100"/><text y=".68em" x="50" text-anchor="middle" font-size="55">🐰</text></svg>');
+const defaultAssistantSvg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="#1a1a1a" width="100" height="100"/><text y=".68em" x="50" text-anchor="middle" font-size="55">🐇</text></svg>');
+
+function MessageBubble({ message, avatar }) {
   const [showReasoning, setShowReasoning] = useState(false);
+  const avatarSrc = avatar || (message.role === 'user' ? defaultUserSvg : defaultAssistantSvg);
 
   if (message.role === 'user') {
     return (
       <div className="message user">
-        <div className="message-content">{message.content}</div>
+        <div className="message-body">
+          <div className="message-content">{message.content}</div>
+          <div className="message-avatar"><img src={avatarSrc} alt="" /></div>
+        </div>
       </div>
     );
   }
@@ -146,18 +160,23 @@ function MessageBubble({ message }) {
   if (message.role === 'assistant') {
     return (
       <div className="message assistant">
-        {message.reasoning_content && (
-          <div className="reasoning-toggle">
-            <button onClick={() => setShowReasoning(!showReasoning)}>
-              {showReasoning ? '🧠 Hide thinking' : '🧠 Show thinking'}
-            </button>
-            {showReasoning && (
-              <div className="reasoning-content">{message.reasoning_content}</div>
+        <div className="message-body">
+          <div className="message-avatar"><img src={avatarSrc} alt="" /></div>
+          <div className="message-bubble">
+            {message.reasoning_content && (
+              <div className="reasoning-toggle">
+                <button onClick={() => setShowReasoning(!showReasoning)}>
+                  {showReasoning ? 'Hide thinking' : 'Show thinking'}
+                </button>
+                {showReasoning && (
+                  <div className="reasoning-content">{message.reasoning_content}</div>
+                )}
+              </div>
             )}
+            <div className="message-content">
+              <MarkdownRenderer content={message.content} />
+            </div>
           </div>
-        )}
-        <div className="message-content">
-          <MarkdownRenderer content={message.content} />
         </div>
       </div>
     );

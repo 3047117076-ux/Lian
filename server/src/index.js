@@ -4,6 +4,7 @@ const cors = require('cors');
 const chatRoutes = require('./routes/chat');
 const sessionsRoutes = require('./routes/sessions');
 const settingsRoutes = require('./routes/settings');
+const uploadRoutes = require('./routes/upload');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -17,6 +18,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use('/api/chat', chatRoutes);
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
