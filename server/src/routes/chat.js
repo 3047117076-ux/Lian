@@ -172,14 +172,9 @@ router.post('/regenerate', async (req, res) => {
       userMsgId = userMsg[0].id;
       message = userMsg[0].content;
 
-      // Hide target AI reply + everything after it (old branch)
-      const { data: afterMsgs } = await supabase.from('messages')
-        .select('id').eq('session_id', sessionId)
-        .eq('visible', true).gte('created_at', targetMsg.created_at);
-      if (afterMsgs?.length > 0) {
-        deletedIds = afterMsgs.map(m => m.id);
-        await supabase.from('messages').update({ visible: false }).in('id', deletedIds);
-      }
+      // Only hide the target AI reply (not everything after)
+      deletedIds = [targetMsg.id];
+      await supabase.from('messages').update({ visible: false }).eq('id', targetMsg.id);
     } else {
       // No messageId: regenerate from the last user message
       const { data: lastUser } = await supabase
@@ -337,13 +332,14 @@ router.patch('/edit-message', async (req, res) => {
       await supabase.from('messages').update({ version_group: versionGroup, reply_version: 0 }).eq('id', messageId);
     }
 
-    // Hide the AI reply after old msg + everything after it (the old branch)
-    const { data: afterMsgs } = await supabase.from('messages')
+    // Only hide the first AI reply after old msg (not everything after)
+    const { data: nextAsst } = await supabase.from('messages')
       .select('id').eq('session_id', old.session_id)
-      .eq('visible', true).gt('created_at', old.created_at);
-    if (afterMsgs?.length > 0) {
-      await supabase.from('messages').update({ visible: false })
-        .in('id', afterMsgs.map(m => m.id));
+      .eq('role', 'assistant').eq('visible', true)
+      .gt('created_at', old.created_at)
+      .order('created_at', { ascending: true }).limit(1);
+    if (nextAsst?.length > 0) {
+      await supabase.from('messages').update({ visible: false }).eq('id', nextAsst[0].id);
     }
 
     res.json({ id: newId, content: newContent, versionGroup, replyVersion: nextVersion });
