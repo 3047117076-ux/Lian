@@ -695,38 +695,38 @@ body {
 }
 
 /* --- Message Toolbar --- */
-.msg-toolbar {
+.msg-actions {
   display: flex;
-  align-items: center;
-  gap: 2px;
+  gap: 4px;
   margin-top: 4px;
-  opacity: 0.5;
-  transition: opacity 0.2s;
 }
 
-.message:hover .msg-toolbar {
-  opacity: 1;
-}
-
-.msg-toolbar button {
-  background: none;
-  border: none;
+.msg-actions button {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 12px;
-  padding: 2px 5px;
+  font-size: 10px;
+  padding: 2px 8px;
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
   transition: all 0.15s;
 }
 
-.msg-toolbar button:hover {
+.msg-actions button:hover {
   color: var(--text-primary);
-  background: var(--bg-hover);
+  border-color: var(--text-muted);
 }
 
-.msg-toolbar button:disabled {
+.msg-actions button:disabled {
   opacity: 0.3;
   cursor: default;
+}
+
+.version-num {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 0 2px;
 }
 
 .version-info {

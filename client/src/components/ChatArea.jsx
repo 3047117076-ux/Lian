@@ -12,6 +12,7 @@ export default function ChatArea({
   const [model, setModel] = useState('claude-full');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const [replyVersions, setReplyVersions] = useState({}); // { versionGroup: { versions: [...], activeIdx: N } }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -20,6 +21,33 @@ export default function ChatArea({
   useEffect(() => {
     inputRef.current?.focus();
   }, [currentSessionId]);
+
+  const loadReplyVersions = async (vg) => {
+    if (!vg || replyVersions[vg]) return;
+    try {
+      const API = import.meta.env.DEV ? 'http://localhost:3000/api' : 'https://lian-dq0q.onrender.com/api';
+      const res = await fetch(`${API}/chat/versions?version_group=${vg}`);
+      const data = await res.json();
+      if (data.length > 1) {
+        setReplyVersions(prev => ({ ...prev, [vg]: { versions: data, activeIdx: data.length - 1 } }));
+      }
+    } catch {}
+  };
+
+  const switchReplyVersion = (vg, dir) => {
+    const info = replyVersions[vg];
+    if (!info) return;
+    const newIdx = info.activeIdx + dir;
+    if (newIdx < 0 || newIdx >= info.versions.length) return;
+    setReplyVersions(prev => ({ ...prev, [vg]: { ...info, activeIdx: newIdx } }));
+  };
+
+  const getActiveReplyContent = (msg) => {
+    const vg = msg.version_group;
+    if (!vg || !replyVersions[vg]) return msg.content;
+    const info = replyVersions[vg];
+    return info.versions[info.activeIdx]?.content || msg.content;
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -71,13 +99,29 @@ export default function ChatArea({
               <div className="message-bubble">
                 <div className="message-content">
                   {msg.role === 'user' ? (
-                  <EditableContent msg={msg} />
-                ) : <MarkdownRenderer content={msg.content} />}
+                  <EditableContent msg={msg} onEdited={(oldId) => {
+                    let idx = messages.findIndex(m => m.id === oldId);
+                    const nextAsst = idx >= 0 ? messages.slice(idx + 1).find(m => m.role === 'assistant') : null;
+                    if (nextAsst) onRegenerate && onRegenerate('openai', 'claude-full', nextAsst.id);
+                  }} />
+                ) : <MarkdownRenderer content={getActiveReplyContent(msg)} />}
                 </div>
-                {msg.role === 'assistant' && hoveredMsg === msg.id && (
+                {msg.role === 'assistant' && (
                   <div className="msg-actions">
-                    <button onClick={() => navigator.clipboard.writeText(msg.content)}>copy</button>
-                    <button onClick={() => onRegenerate && onRegenerate('openai', 'claude-full', msg.id)}>retry</button>
+                    {msg.version_group && replyVersions[msg.version_group] && replyVersions[msg.version_group].versions.length > 1 && (
+                      <>
+                        <button onClick={() => switchReplyVersion(msg.version_group, -1)}
+                          disabled={replyVersions[msg.version_group].activeIdx <= 0}>◂</button>
+                        <span className="version-num">{replyVersions[msg.version_group].activeIdx + 1}/{replyVersions[msg.version_group].versions.length}</span>
+                        <button onClick={() => switchReplyVersion(msg.version_group, 1)}
+                          disabled={replyVersions[msg.version_group].activeIdx >= replyVersions[msg.version_group].versions.length - 1}>▸</button>
+                      </>
+                    )}
+                    <button onClick={() => navigator.clipboard.writeText(getActiveReplyContent(msg))}>copy</button>
+                    <button onClick={() => {
+                      onRegenerate && onRegenerate('openai', 'claude-full', msg.id);
+                      setTimeout(() => msg.version_group && loadReplyVersions(msg.version_group), 3000);
+                    }}>retry</button>
                   </div>
                 )}
               </div>
@@ -125,19 +169,21 @@ export default function ChatArea({
   );
 }
 
-function EditableContent({ msg }) {
+function EditableContent({ msg, onEdited }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(msg.content || '');
 
   const submit = async () => {
     if (!text.trim() || text === msg.content) { setEditing(false); return; }
     const API = import.meta.env.DEV ? 'http://localhost:3000/api' : 'https://lian-dq0q.onrender.com/api';
-    await fetch(`${API}/chat/edit-message`, {
+    const res = await fetch(`${API}/chat/edit-message`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messageId: msg.id, newContent: text.trim() })
     });
+    const data = await res.json();
     msg.content = text.trim();
     setEditing(false);
+    if (onEdited) onEdited(msg.id, data.id);
   };
 
   if (editing) {
