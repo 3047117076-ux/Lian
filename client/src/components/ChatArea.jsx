@@ -12,6 +12,7 @@ export default function ChatArea({
   const [model, setModel] = useState('claude-full');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const [msgVersions, setMsgVersions] = useState({}); // { versionGroup: { versions: [...], current: N } }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -20,6 +21,39 @@ export default function ChatArea({
   useEffect(() => {
     inputRef.current?.focus();
   }, [currentSessionId]);
+
+  const loadVersions = async (msg) => {
+    const vg = msg.version_group;
+    if (!vg) return;
+    if (msgVersions[vg]) return; // already loaded
+    try {
+      const API = import.meta.env.DEV ? 'http://localhost:3000/api' : 'https://lian-dq0q.onrender.com/api';
+      const res = await fetch(`${API}/chat/versions?version_group=${vg}`);
+      const data = await res.json();
+      if (data.length > 1) {
+        const current = (msg.reply_version || 0);
+        setMsgVersions(prev => ({ ...prev, [vg]: { versions: data, current } }));
+      }
+    } catch {}
+  };
+
+  const switchMsgVersion = (vg, direction) => {
+    const info = msgVersions[vg];
+    if (!info) return;
+    const newIdx = info.current + direction;
+    if (newIdx < 0 || newIdx >= info.versions.length) return;
+    setMsgVersions(prev => ({ ...prev, [vg]: { ...info, current: newIdx } }));
+    // Update the message content in-place
+    const target = info.versions[newIdx];
+    const msg = messages.find(m => m.version_group === vg || m.id === target.id);
+    if (msg) {
+      msg.content = target.content;
+      msg.id = target.id;
+      msg.reply_version = target.reply_version;
+      // Force re-render
+      setHoveredMsg(null);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -62,7 +96,7 @@ export default function ChatArea({
         )}
         {messages.map((msg, idx) => (
           <div key={msg.id} className={`message ${msg.role}`}
-            onMouseEnter={() => setHoveredMsg(msg.id)}
+            onMouseEnter={() => { setHoveredMsg(msg.id); if (msg.version_group) loadVersions(msg); }}
             onMouseLeave={() => setHoveredMsg(null)}>
             <div className="message-body">
               {msg.role === 'assistant' && (
@@ -71,16 +105,29 @@ export default function ChatArea({
               <div className="message-bubble">
                 <div className="message-content">
                   {msg.role === 'user' ? (
-                  <EditableContent msg={msg} onEdited={(oldId, newId, versionGroup) => {
-                    msg.id = newId;
-                    msg.version_group = versionGroup;
-                    let idx = messages.findIndex(m => m.id === oldId);
-                    if (idx < 0) idx = messages.findIndex(m => m.id === newId);
-                    const nextAsst = messages.slice(idx + 1).find(m => m.role === 'assistant');
-                    if (nextAsst) {
-                      onRegenerate && onRegenerate('openai', 'claude-full', nextAsst.id);
-                    }
-                  }} />
+                  <div>
+                    {msg.version_group && msgVersions[msg.version_group] && msgVersions[msg.version_group].versions.length > 1 && (
+                      <div className="version-switcher">
+                        <button onClick={() => switchMsgVersion(msg.version_group, -1)}
+                          disabled={msgVersions[msg.version_group].current <= 0}>◂</button>
+                        <span>{msgVersions[msg.version_group].current + 1}/{msgVersions[msg.version_group].versions.length}</span>
+                        <button onClick={() => switchMsgVersion(msg.version_group, 1)}
+                          disabled={msgVersions[msg.version_group].current >= msgVersions[msg.version_group].versions.length - 1}>▸</button>
+                      </div>
+                    )}
+                    <EditableContent msg={msg} onEdited={(oldId, newId, versionGroup) => {
+                      msg.id = newId;
+                      msg.version_group = versionGroup;
+                      // Load versions for this group
+                      loadVersions(msg);
+                      let idx = messages.findIndex(m => m.id === oldId);
+                      if (idx < 0) idx = messages.findIndex(m => m.id === newId);
+                      const nextAsst = messages.slice(idx + 1).find(m => m.role === 'assistant');
+                      if (nextAsst) {
+                        onRegenerate && onRegenerate('openai', 'claude-full', nextAsst.id);
+                      }
+                    }} />
+                  </div>
                 ) : <MarkdownRenderer content={msg.content} />}
                 </div>
                 {msg.role === 'assistant' && hoveredMsg === msg.id && (

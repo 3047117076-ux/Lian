@@ -736,6 +736,31 @@ body {
   text-align: center;
 }
 
+/* --- Version Switcher --- */
+.version-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+  opacity: 0.6;
+}
+.version-switcher button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 0 3px;
+  cursor: pointer;
+}
+.version-switcher button:hover:not(:disabled) { color: var(--text-primary); }
+.version-switcher button:disabled { opacity: 0.3; cursor: default; }
+.version-switcher span {
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 24px;
+  text-align: center;
+}
+
 /* --- Editable text --- */
 .editable-text { cursor: pointer; }
 .editable-text:hover { text-decoration: underline; text-decoration-style: dashed; text-decoration-color: var(--text-muted); }
