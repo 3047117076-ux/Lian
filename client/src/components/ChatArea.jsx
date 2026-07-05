@@ -71,7 +71,14 @@ export default function ChatArea({
               <div className="message-bubble">
                 <div className="message-content">
                   {msg.role === 'user' ? (
-                  <EditableContent msg={msg} />
+                  <EditableContent msg={msg} onEdited={() => {
+                    // Find the assistant reply after this user message
+                    const myIdx = messages.findIndex(m => m.id === msg.id);
+                    const nextAssistant = messages.slice(myIdx + 1).find(m => m.role === 'assistant');
+                    if (nextAssistant) {
+                      onRegenerate && onRegenerate('openai', 'claude-full', nextAssistant.id);
+                    }
+                  }} />
                 ) : <MarkdownRenderer content={msg.content} />}
                 </div>
                 {msg.role === 'assistant' && hoveredMsg === msg.id && (
@@ -130,17 +137,21 @@ export default function ChatArea({
   );
 }
 
-function EditableContent({ msg }) {
+function EditableContent({ msg, onEdited }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(msg.content || '');
 
   const submit = async () => {
     if (!text.trim() || text === msg.content) { setEditing(false); return; }
     try {
-      const { editMessage } = await import('../utils/api');
-      await editMessage(msg.id, text.trim());
-      msg.content = text.trim(); // update in-place
+      await fetch(
+        import.meta.env.DEV ? 'http://localhost:3000/api/chat/edit-message' : 'https://lian-dq0q.onrender.com/api/chat/edit-message',
+        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId: msg.id, newContent: text.trim() }) }
+      );
+      msg.content = text.trim();
       setEditing(false);
+      // Trigger regenerate for the reply after this message
+      if (onEdited) onEdited(msg.id);
     } catch (err) { console.error(err); }
   };
 
