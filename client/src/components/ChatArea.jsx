@@ -115,11 +115,14 @@ export default function ChatArea({
                           disabled={msgVersions[msg.version_group].current >= msgVersions[msg.version_group].versions.length - 1}>▸</button>
                       </div>
                     )}
-                    <EditableContent msg={msg} onEdited={(oldId, newId, versionGroup) => {
+                    <EditableContent msg={msg} onEdited={(oldId, newId, versionGroup, replyVersion) => {
                       msg.id = newId;
                       msg.version_group = versionGroup;
-                      // Load versions for this group
-                      loadVersions(msg);
+                      msg.reply_version = replyVersion;
+                      // Directly set version state without API call
+                      const oldVersion = { id: oldId, content: msg.content, role: 'user', reply_version: (replyVersion || 1) - 1, visible: false };
+                      const newVersion = { id: newId, content: msg.content, role: 'user', reply_version: replyVersion || 1, visible: true };
+                      setMsgVersions(prev => ({ ...prev, [versionGroup]: { versions: [oldVersion, newVersion], current: 1 } }));
                       let idx = messages.findIndex(m => m.id === oldId);
                       if (idx < 0) idx = messages.findIndex(m => m.id === newId);
                       const nextAsst = messages.slice(idx + 1).find(m => m.role === 'assistant');
@@ -200,7 +203,7 @@ function EditableContent({ msg, onEdited }) {
       });
       const data = await res.json();
       setEditing(false);
-      if (onEdited) onEdited(msg.id, data.id, data.versionGroup);
+      if (onEdited) onEdited(msg.id, data.id, data.versionGroup, data.replyVersion);
     } catch (err) { console.error(err); }
   };
 

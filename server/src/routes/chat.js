@@ -298,9 +298,8 @@ router.get('/versions', async (req, res) => {
         .order('reply_version', { ascending: true });
     } else if (version_group) {
       query = supabase.from('messages')
-        .select('id, content, role, reply_version, created_at')
+        .select('id, content, role, reply_version, visible, created_at')
         .eq('version_group', version_group)
-        .eq('visible', true)
         .order('reply_version', { ascending: true });
     } else {
       return res.status(400).json({ error: 'reply_to or version_group required' });
