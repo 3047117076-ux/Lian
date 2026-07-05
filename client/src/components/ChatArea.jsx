@@ -7,6 +7,7 @@ export default function ChatArea({
   currentSessionId, hasMore, onLoadMore, onRegenerate, onSend,
   userAvatar, assistantAvatar, backgroundImage,
 }) {
+  const [hoveredMsg, setHoveredMsg] = useState(null);
   const [input, setInput] = useState('');
   const [model, setModel] = useState('claude-full');
   const messagesEndRef = useRef(null);
@@ -59,8 +60,10 @@ export default function ChatArea({
         {hasMore && (
           <button className="load-more-btn" onClick={onLoadMore}>Load earlier</button>
         )}
-        {messages.map((msg) => (
-          <div key={msg.id} className={`message ${msg.role}`}>
+        {messages.map((msg, idx) => (
+          <div key={msg.id} className={`message ${msg.role}`}
+            onMouseEnter={() => setHoveredMsg(msg.id)}
+            onMouseLeave={() => setHoveredMsg(null)}>
             <div className="message-body">
               {msg.role === 'assistant' && (
                 <div className="message-avatar"><img src={assistantAvatar || defaultAssistantSvg} alt="" /></div>
@@ -69,6 +72,12 @@ export default function ChatArea({
                 <div className="message-content">
                   {msg.role === 'user' ? msg.content : <MarkdownRenderer content={msg.content} />}
                 </div>
+                {msg.role === 'assistant' && hoveredMsg === msg.id && (
+                  <div className="msg-actions">
+                    <button onClick={() => navigator.clipboard.writeText(msg.content)} title="Copy">copy</button>
+                    <button onClick={() => onRegenerate && onRegenerate('openai', 'claude-full')} title="Regenerate">retry</button>
+                  </div>
+                )}
               </div>
               {msg.role === 'user' && (
                 <div className="message-avatar"><img src={userAvatar || defaultUserSvg} alt="" /></div>
