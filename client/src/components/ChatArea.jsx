@@ -17,6 +17,7 @@ export default function ChatArea({
   onSend,
   onEditMessage,
   onDeleteMessage,
+  switchVersion,
   userAvatar,
   assistantAvatar,
   backgroundImage,
