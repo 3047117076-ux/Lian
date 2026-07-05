@@ -56,7 +56,7 @@ async function* streamClaude(systemPrompt, messages, settings = {}) {
   const client = getAnthropicClient();
   if (!client) throw new Error('ANTHROPIC_API_KEY not configured');
   const stream = await client.messages.create({
-    model: settings.model || 'claude-sonnet-4-6',
+    model: settings.model || 'claude-full',
     max_tokens: settings.max_reply_tokens || 4096,
     temperature: settings.temperature ?? 0.8,
     system: [{ type: 'text', text: systemPrompt }],
@@ -96,7 +96,7 @@ async function* streamOpenAICompatible(systemPrompt, messages, settings = {}) {
   ];
 
   const stream = await client.chat.completions.create({
-    model: settings.model || process.env.OPENAI_MODEL || 'claude-sonnet-4-6',
+    model: settings.model || 'claude-full',
     max_tokens: settings.max_reply_tokens || 4096,
     temperature: settings.temperature ?? 0.8,
     messages: fullMessages,

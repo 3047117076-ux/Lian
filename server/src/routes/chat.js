@@ -72,7 +72,7 @@ router.post('/send', async (req, res) => {
     const aiSettings = {
       ...settings,
       provider: provider || settings.provider || 'openai',
-      model: model || settings.model,
+      model: model || settings.model || 'claude-full',
     };
 
     for await (const chunk of streamAI(systemPrompt, messages, aiSettings)) {
