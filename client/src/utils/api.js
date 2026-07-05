@@ -4,7 +4,7 @@
 
 const API_BASE = import.meta.env.DEV
   ? 'http://localhost:3000/api'
-  : '/api';
+  : 'https://lian-dq0q.onrender.com/api';
 
 /**
  * Send message and get SSE stream
