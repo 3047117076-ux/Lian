@@ -14,7 +14,7 @@ const { v4: uuidv4 } = require('uuid');
  */
 router.post('/send', async (req, res) => {
   try {
-    const { sessionId, message, provider } = req.body;
+    const { sessionId, message, provider, model } = req.body;
 
     if (!message || !sessionId) {
       return res.status(400).json({ error: 'sessionId and message are required' });
@@ -71,7 +71,8 @@ router.post('/send', async (req, res) => {
 
     const aiSettings = {
       ...settings,
-      provider: provider || settings.provider || 'claude',
+      provider: provider || settings.provider || 'openai',
+      model: model || settings.model,
     };
 
     for await (const chunk of streamAI(systemPrompt, messages, aiSettings)) {

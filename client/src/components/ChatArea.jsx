@@ -14,7 +14,8 @@ export default function ChatArea({
   onSend,
 }) {
   const [input, setInput] = useState('');
-  const [provider, setProvider] = useState('claude');
+  const [provider, setProvider] = useState('openai');
+  const [model, setModel] = useState('claude-full');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -29,7 +30,7 @@ export default function ChatArea({
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
-    onSend(input.trim(), provider);
+    onSend(input.trim(), provider, model);
     setInput('');
   };
 
@@ -49,12 +50,13 @@ export default function ChatArea({
     <div className="chat-area">
       <div className="chat-header">
         <select
-          value={provider}
-          onChange={(e) => setProvider(e.target.value)}
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
           className="provider-select"
         >
-          <option value="openai">🤖 Claude (中转)</option>
-          <option value="claude">🔷 Claude (直连)</option>
+          <option value="claude-full">🧠 满血版</option>
+          <option value="claude-max">⚡ Max版</option>
+          <option value="claude-direct">🔷 直连 Claude</option>
         </select>
       </div>
 

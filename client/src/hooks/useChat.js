@@ -63,7 +63,7 @@ export default function useChat() {
   }, [currentSessionId, loadSessions]);
 
   // Send message
-  const sendMessage = useCallback(async (content, provider = 'openai') => {
+  const sendMessage = useCallback(async (content, provider = 'openai', model = 'claude-full') => {
     if (!currentSessionId || !content.trim()) return;
 
     setIsLoading(true);
@@ -85,7 +85,7 @@ export default function useChat() {
       let fullContent = '';
       let fullReasoning = '';
 
-      for await (const chunk of api.sendMessage(currentSessionId, content, provider)) {
+      for await (const chunk of api.sendMessage(currentSessionId, content, provider, model)) {
         if (chunk.type === 'text') {
           fullContent += chunk.text;
           setStreamingText(fullContent);

@@ -121,14 +121,25 @@ async function* streamOpenAICompatible(systemPrompt, messages, settings = {}) {
   yield { type: 'done', content: fullContent, reasoning: fullReasoning };
 }
 
+// --- Model name mapping ---
+const MODEL_MAP = {
+  'claude-full': '熊猫-按量-特供顶级-官方正向满血-claude-sonnet-4.6',
+  'claude-max': '熊猫-按量-顶级特供-官max-claude-sonnet-4.6',
+  'claude-direct': 'claude-sonnet-4-6',
+};
+
 // --- Router ---
 async function* streamAI(systemPrompt, messages, settings = {}) {
-  const provider = settings.provider || 'openai'; // default to openai-compatible now
+  const provider = settings.provider || 'openai';
+
+  // Resolve model short name → full name
+  if (settings.model && MODEL_MAP[settings.model]) {
+    settings = { ...settings, model: MODEL_MAP[settings.model] };
+  }
 
   if (provider === 'claude') {
     yield* streamClaude(systemPrompt, messages, settings);
   } else {
-    // openai, deepseek, proxy — all use the same openai-compatible path
     yield* streamOpenAICompatible(systemPrompt, messages, settings);
   }
 }
