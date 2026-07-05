@@ -90,8 +90,15 @@ export default function ChatArea({
         )}
         {messages.filter((msg, i, arr) => {
           if (!msg.version_group) return true;
-          // Only show the latest version in each group
-          const maxVer = Math.max(...arr.filter(m => m.version_group === msg.version_group).map(m => m.reply_version || 0));
+          const vg = msg.version_group;
+          // If user has selected a version via switcher, show that one
+          if (replyVersions[vg]) {
+            const activeIdx = replyVersions[vg].activeIdx;
+            const activeVer = replyVersions[vg].versions[activeIdx];
+            if (activeVer) return msg.id === activeVer.id;
+          }
+          // Default: show latest version
+          const maxVer = Math.max(...arr.filter(m => m.version_group === vg).map(m => m.reply_version || 0));
           return (msg.reply_version || 0) === maxVer;
         }).map((msg, idx) => (
           <div key={msg.id} className={`message ${msg.role}`}
