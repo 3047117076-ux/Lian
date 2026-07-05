@@ -63,7 +63,7 @@ export default function useChat() {
   }, [currentSessionId, loadSessions]);
 
   // Send message
-  const sendMessage = useCallback(async (content, provider = 'claude') => {
+  const sendMessage = useCallback(async (content, provider = 'openai') => {
     if (!currentSessionId || !content.trim()) return;
 
     setIsLoading(true);

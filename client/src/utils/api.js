@@ -9,7 +9,7 @@ const API_BASE = import.meta.env.DEV
 /**
  * Send message and get SSE stream
  */
-export async function* sendMessage(sessionId, message, provider = 'claude') {
+export async function* sendMessage(sessionId, message, provider = 'openai') {
   const response = await fetch(`${API_BASE}/chat/send`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

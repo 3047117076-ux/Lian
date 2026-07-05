@@ -53,8 +53,8 @@ export default function ChatArea({
           onChange={(e) => setProvider(e.target.value)}
           className="provider-select"
         >
-          <option value="claude">🤖 Claude</option>
-          <option value="deepseek">🧠 DeepSeek</option>
+          <option value="openai">🤖 Claude (中转)</option>
+          <option value="claude">🔷 Claude (直连)</option>
         </select>
       </div>
 

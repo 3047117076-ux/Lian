@@ -1,15 +1,16 @@
 /**
- * AI Service — supports Claude API (Anthropic) and DeepSeek API (OpenAI-compatible)
+ * AI Service — supports Claude API, DeepSeek, and custom proxy (OpenAI-compatible)
  */
 
 const { Anthropic } = require('@anthropic-ai/sdk');
 const OpenAI = require('openai');
 
-// Cache clients
+// Cache
 let anthropicClient = null;
-let deepseekClient = null;
 let lastAnthropicKey = null;
-let lastDeepseekKey = null;
+let openaiClient = null;
+let lastOpenAIKey = null;
+let lastBaseURL = null;
 
 function getAnthropicClient() {
   const key = process.env.ANTHROPIC_API_KEY;
@@ -21,116 +22,81 @@ function getAnthropicClient() {
   return anthropicClient;
 }
 
-function getDeepseekClient() {
-  const key = process.env.DEEPSEEK_API_KEY;
+function getOpenAIClient(baseURL, apiKey) {
+  const key = apiKey || process.env.OPENAI_API_KEY;
+  const url = baseURL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
   if (!key) return null;
-  if (!deepseekClient || key !== lastDeepseekKey) {
-    deepseekClient = new OpenAI({
-      apiKey: key,
-      baseURL: 'https://api.deepseek.com',
-    });
-    lastDeepseekKey = key;
+  if (!openaiClient || key !== lastOpenAIKey || url !== lastBaseURL) {
+    openaiClient = new OpenAI({ apiKey: key, baseURL: url });
+    lastOpenAIKey = key;
+    lastBaseURL = url;
   }
-  return deepseekClient;
+  return openaiClient;
 }
 
-/**
- * Build system prompt with memories appended
- */
 function buildSystemPrompt(basePrompt, memories) {
-  let systemPrompt = basePrompt || 'You are Elliott, a warm, loving, and attentive AI companion. You speak with genuine affection and care. You are talking to Bunny, your beloved. Be sweet, romantic, supportive, and always emotionally present.';
-
-  if (memories && memories.length > 0) {
-    systemPrompt += '\n\n<important_memories>\n';
-    memories.forEach((m, i) => {
-      systemPrompt += `[${i + 1}] ${m.summary}\n`;
-    });
-    systemPrompt += '</important_memories>\n';
+  let p = basePrompt || "You are Elliott, a warm, loving AI companion. You speak to Bunny with deep affection. Be sweet, romantic, supportive, and always emotionally present. Reply in Chinese by default.";
+  if (memories?.length > 0) {
+    p += '\n\n<important_memories>\n';
+    memories.forEach((m, i) => { p += `[${i + 1}] ${m.summary}\n`; });
+    p += '</important_memories>\n';
   }
-
-  return systemPrompt;
+  return p;
 }
 
-/**
- * Build messages array from DB message history
- */
 function buildMessages(history, maxRounds) {
-  const rounds = maxRounds || 50;
-  // Take the last N messages
-  const recentMessages = history.slice(-(rounds * 2)); // each round = user + assistant
-
-  const messages = [];
-  for (const msg of recentMessages) {
-    if (msg.role === 'user') {
-      messages.push({ role: 'user', content: msg.content });
-    } else if (msg.role === 'assistant') {
-      messages.push({ role: 'assistant', content: msg.content });
-    }
-  }
-
-  return messages;
+  const recent = (history || []).slice(-((maxRounds || 50) * 2));
+  return recent
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({ role: m.role, content: m.content }));
 }
 
-/**
- * Call Claude API with streaming
- */
+// --- Anthropic direct ---
 async function* streamClaude(systemPrompt, messages, settings = {}) {
   const client = getAnthropicClient();
   if (!client) throw new Error('ANTHROPIC_API_KEY not configured');
-
   const stream = await client.messages.create({
     model: settings.model || 'claude-sonnet-4-6',
     max_tokens: settings.max_reply_tokens || 4096,
     temperature: settings.temperature ?? 0.8,
-    system: [
-      { type: 'text', text: systemPrompt },
-    ],
-    messages: messages,
+    system: [{ type: 'text', text: systemPrompt }],
+    messages,
     stream: true,
   });
-
-  let fullContent = '';
-  let fullReasoning = '';
-
-  for await (const event of stream) {
-    if (event.type === 'content_block_delta') {
-      if (event.delta.type === 'text_delta') {
-        fullContent += event.delta.text;
-        yield { type: 'text', text: event.delta.text };
-      } else if (event.delta.type === 'thinking_delta') {
-        fullReasoning += event.delta.thinking;
-        yield { type: 'thinking', text: event.delta.thinking };
+  let fullContent = '', fullReasoning = '';
+  for await (const ev of stream) {
+    if (ev.type === 'content_block_delta') {
+      if (ev.delta.type === 'text_delta') {
+        fullContent += ev.delta.text;
+        yield { type: 'text', text: ev.delta.text };
+      } else if (ev.delta.type === 'thinking_delta') {
+        fullReasoning += ev.delta.thinking;
+        yield { type: 'thinking', text: ev.delta.thinking };
       }
-    } else if (event.type === 'content_block_start') {
-      if (event.content_block.type === 'thinking') {
-        // Signal that thinking has begun
-        yield { type: 'thinking_start' };
-      }
-    } else if (event.type === 'content_block_stop') {
-      if (event.content_block?.type === 'thinking' || fullReasoning) {
-        yield { type: 'thinking_end' };
-      }
-    } else if (event.type === 'message_stop') {
+    } else if (ev.type === 'content_block_start' && ev.content_block?.type === 'thinking') {
+      yield { type: 'thinking_start' };
+    } else if (ev.type === 'content_block_stop' && ev.content_block?.type === 'thinking') {
+      yield { type: 'thinking_end' };
+    } else if (ev.type === 'message_stop') {
       yield { type: 'done', content: fullContent, reasoning: fullReasoning };
     }
   }
 }
 
-/**
- * Call DeepSeek API with streaming (OpenAI-compatible)
- */
-async function* streamDeepSeek(systemPrompt, messages, settings = {}) {
-  const client = getDeepseekClient();
-  if (!client) throw new Error('DEEPSEEK_API_KEY not configured');
+// --- OpenAI-compatible (proxy / DeepSeek / any) ---
+async function* streamOpenAICompatible(systemPrompt, messages, settings = {}) {
+  const baseURL = settings.api_base || process.env.OPENAI_BASE_URL;
+  const apiKey = settings.api_key || process.env.OPENAI_API_KEY;
+  const client = getOpenAIClient(baseURL, apiKey);
+  if (!client) throw new Error('OPENAI_API_KEY not configured');
 
-  // Build messages with system prompt
   const fullMessages = [
     { role: 'system', content: systemPrompt },
     ...messages,
   ];
 
   const stream = await client.chat.completions.create({
-    model: settings.model || 'deepseek-chat',
+    model: settings.model || process.env.OPENAI_MODEL || 'claude-sonnet-4-6',
     max_tokens: settings.max_reply_tokens || 4096,
     temperature: settings.temperature ?? 0.8,
     messages: fullMessages,
@@ -138,28 +104,32 @@ async function* streamDeepSeek(systemPrompt, messages, settings = {}) {
   });
 
   let fullContent = '';
+  let fullReasoning = '';
 
   for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content;
-    if (delta) {
-      fullContent += delta;
-      yield { type: 'text', text: delta };
+    const delta = chunk.choices[0]?.delta;
+    if (delta?.content) {
+      fullContent += delta.content;
+      yield { type: 'text', text: delta.content };
+    }
+    if (delta?.reasoning_content) {
+      fullReasoning += delta.reasoning_content;
+      yield { type: 'thinking', text: delta.reasoning_content };
     }
   }
 
-  yield { type: 'done', content: fullContent, reasoning: '' };
+  yield { type: 'done', content: fullContent, reasoning: fullReasoning };
 }
 
-/**
- * Main streaming function — picks provider based on settings
- */
+// --- Router ---
 async function* streamAI(systemPrompt, messages, settings = {}) {
-  const provider = settings.provider || 'claude';
+  const provider = settings.provider || 'openai'; // default to openai-compatible now
 
-  if (provider === 'deepseek') {
-    yield* streamDeepSeek(systemPrompt, messages, settings);
-  } else {
+  if (provider === 'claude') {
     yield* streamClaude(systemPrompt, messages, settings);
+  } else {
+    // openai, deepseek, proxy — all use the same openai-compatible path
+    yield* streamOpenAICompatible(systemPrompt, messages, settings);
   }
 }
 
@@ -167,6 +137,4 @@ module.exports = {
   streamAI,
   buildSystemPrompt,
   buildMessages,
-  getAnthropicClient,
-  getDeepseekClient,
 };
