@@ -171,7 +171,15 @@ router.post('/regenerate', async (req, res) => {
 
       userMsgId = userMsg[0].id;
       message = userMsg[0].content;
-      // Keep old reply visible — don't delete anything
+
+      // Hide target AI reply + everything after it (old branch)
+      const { data: afterMsgs } = await supabase.from('messages')
+        .select('id').eq('session_id', sessionId)
+        .eq('visible', true).gte('created_at', targetMsg.created_at);
+      if (afterMsgs?.length > 0) {
+        deletedIds = afterMsgs.map(m => m.id);
+        await supabase.from('messages').update({ visible: false }).in('id', deletedIds);
+      }
     } else {
       // No messageId: regenerate from the last user message
       const { data: lastUser } = await supabase
@@ -283,7 +291,7 @@ router.get('/versions', async (req, res) => {
       query = supabase.from('messages')
         .select('id, content, role, reply_version, visible, created_at')
         .eq('version_group', version_group)
-        .order('reply_version', { ascending: true });
+        .order('reply_version', { ascending: false });
     } else {
       return res.status(400).json({ error: 'reply_to or version_group required' });
     }
@@ -312,7 +320,10 @@ router.patch('/edit-message', async (req, res) => {
     const versionGroup = old.version_group || old.id;
     const nextVersion = (old.reply_version || 0) + 1;
 
-    // Create new version — keep old one visible too
+    // Hide old user message
+    await supabase.from('messages').update({ visible: false }).eq('id', messageId);
+
+    // Create new version
     const newId = uuidv4();
     await supabase.from('messages').insert({
       id: newId, session_id: old.session_id, role: 'user',
@@ -321,9 +332,18 @@ router.patch('/edit-message', async (req, res) => {
       created_at: new Date().toISOString(),
     });
 
-    // Mark old version with version_group so it's grouped
+    // Mark old version with version_group
     if (!old.version_group) {
       await supabase.from('messages').update({ version_group: versionGroup, reply_version: 0 }).eq('id', messageId);
+    }
+
+    // Hide the AI reply after old msg + everything after it (the old branch)
+    const { data: afterMsgs } = await supabase.from('messages')
+      .select('id').eq('session_id', old.session_id)
+      .eq('visible', true).gt('created_at', old.created_at);
+    if (afterMsgs?.length > 0) {
+      await supabase.from('messages').update({ visible: false })
+        .in('id', afterMsgs.map(m => m.id));
     }
 
     res.json({ id: newId, content: newContent, versionGroup, replyVersion: nextVersion });
