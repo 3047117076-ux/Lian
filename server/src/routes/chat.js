@@ -97,6 +97,7 @@ router.post('/send', async (req, res) => {
     // Save assistant message(s) — split on --- for multi-bubble
     const parts = fullContent.split(/\n?---\n?/).filter(p => p.trim());
     const msgIds = [];
+    const versionGroup = uuidv4(); // group all parts + regenerations together
     for (let i = 0; i < parts.length; i++) {
       const msgId = uuidv4();
       await supabase.from('messages').insert({
@@ -108,6 +109,7 @@ router.post('/send', async (req, res) => {
         visible: true,
         reply_to: userMsgId,
         reply_version: i,
+        version_group: versionGroup,
         usage: i === 0 ? tokenUsage : null,
         created_at: new Date(Date.now() + i * 100).toISOString(),
       });
@@ -263,11 +265,19 @@ router.post('/regenerate', async (req, res) => {
       else if (chunk.type === 'done') { fullContent = chunk.content; fullReasoning = chunk.reasoning; break; }
     }
 
+    // Find version_group from old reply (if regenerating from a specific message)
+    let existingVG = null;
+    if (messageId) {
+      const { data: oldReply } = await supabase.from('messages').select('version_group').eq('id', messageId).single();
+      existingVG = oldReply?.version_group;
+    }
+
     const assistantMsgId = uuidv4();
     await supabase.from('messages').insert({
       id: assistantMsgId, session_id: sessionId, role: 'assistant',
       content: fullContent, reasoning_content: fullReasoning || null,
       visible: true, reply_to: userMsgId, reply_version: nextVersion,
+      version_group: existingVG || uuidv4(),
       created_at: new Date().toISOString(),
     });
 

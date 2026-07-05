@@ -25,7 +25,6 @@ export default function ChatArea({
   const loadVersions = async (msg) => {
     const vg = msg.version_group;
     if (!vg) return;
-    if (msgVersions[vg]) return; // already loaded
     try {
       const API = import.meta.env.DEV ? 'http://localhost:3000/api' : 'https://lian-dq0q.onrender.com/api';
       const res = await fetch(`${API}/chat/versions?version_group=${vg}`);
@@ -103,6 +102,33 @@ export default function ChatArea({
                 <div className="message-avatar"><img src={assistantAvatar || defaultAssistantSvg} alt="" /></div>
               )}
               <div className="message-bubble">
+                {msg.role === 'assistant' && msg.version_group && msgVersions[msg.version_group] && msgVersions[msg.version_group].versions.length > 1 && (
+                  <div className="version-switcher">
+                    <button onClick={() => {
+                      const info = msgVersions[msg.version_group];
+                      if (info.current <= 0) return;
+                      const newCurrent = info.current - 1;
+                      setMsgVersions(prev => ({ ...prev, [msg.version_group]: { ...info, current: newCurrent } }));
+                      const target = info.versions[newCurrent];
+                      msg.content = target.content;
+                      msg.id = target.id;
+                      msg.reply_version = target.reply_version;
+                      setHoveredMsg(null);
+                    }} disabled={msgVersions[msg.version_group].current <= 0}>◂</button>
+                    <span>{msgVersions[msg.version_group].current + 1}/{msgVersions[msg.version_group].versions.length}</span>
+                    <button onClick={() => {
+                      const info = msgVersions[msg.version_group];
+                      if (info.current >= info.versions.length - 1) return;
+                      const newCurrent = info.current + 1;
+                      setMsgVersions(prev => ({ ...prev, [msg.version_group]: { ...info, current: newCurrent } }));
+                      const target = info.versions[newCurrent];
+                      msg.content = target.content;
+                      msg.id = target.id;
+                      msg.reply_version = target.reply_version;
+                      setHoveredMsg(null);
+                    }} disabled={msgVersions[msg.version_group].current >= msgVersions[msg.version_group].versions.length - 1}>▸</button>
+                  </div>
+                )}
                 <div className="message-content">
                   {msg.role === 'user' ? (
                   <div>
@@ -136,7 +162,11 @@ export default function ChatArea({
                 {msg.role === 'assistant' && hoveredMsg === msg.id && (
                   <div className="msg-actions">
                     <button onClick={() => navigator.clipboard.writeText(msg.content)}>copy</button>
-                    <button onClick={() => onRegenerate && onRegenerate('openai', 'claude-full', msg.id)}>retry</button>
+                    <button onClick={() => {
+                      onRegenerate && onRegenerate('openai', 'claude-full', msg.id);
+                      // After a moment, load versions
+                      setTimeout(() => { if (msg.version_group) loadVersions(msg); }, 3000);
+                    }}>retry</button>
                   </div>
                 )}
                 {msg.role === 'user' && hoveredMsg === msg.id && (
