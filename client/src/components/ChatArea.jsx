@@ -74,8 +74,8 @@ export default function ChatArea({
                 </div>
                 {msg.role === 'assistant' && hoveredMsg === msg.id && (
                   <div className="msg-actions">
-                    <button onClick={() => navigator.clipboard.writeText(msg.content)} title="Copy">copy</button>
-                    <button onClick={() => onRegenerate && onRegenerate('openai', 'claude-full')} title="Regenerate">retry</button>
+                    <button onClick={() => navigator.clipboard.writeText(msg.content)}>copy</button>
+                    <button onClick={() => onRegenerate && onRegenerate('openai', 'claude-full', msg.id)}>retry</button>
                   </div>
                 )}
               </div>

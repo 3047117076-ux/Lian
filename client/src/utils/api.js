@@ -85,11 +85,11 @@ export async function deleteMessage(messageId) {
 /**
  * Regenerate last AI reply
  */
-export async function* regenerateMessage(sessionId, provider = 'openai', model = 'claude-full') {
+export async function* regenerateMessage(sessionId, provider = 'openai', model = 'claude-full', messageId = null) {
   const response = await fetch(`${API_BASE}/chat/regenerate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionId, provider, model }),
+    body: JSON.stringify({ sessionId, provider, model, messageId }),
   });
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: 'Request failed' }));

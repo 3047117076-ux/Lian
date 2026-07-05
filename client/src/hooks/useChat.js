@@ -140,19 +140,9 @@ export default function useChat() {
     }
   }, [currentSessionId, loadSessions]);
 
-  // Regenerate last reply
-  const regenerateLastReply = useCallback(async (provider = 'openai', model = 'claude-full') => {
+  // Regenerate from a specific or last reply
+  const regenerateLastReply = useCallback(async (provider = 'openai', model = 'claude-full', messageId = null) => {
     if (!currentSessionId || isLoading) return;
-
-    // Remove last assistant message from UI
-    setMessages(prev => {
-      let lastIdx = -1;
-      for (let i = prev.length - 1; i >= 0; i--) {
-        if (prev[i].role === 'assistant') { lastIdx = i; break; }
-      }
-      if (lastIdx < 0) return prev;
-      return prev.slice(0, lastIdx);
-    });
 
     setIsLoading(true);
     setStreamingText('');
@@ -161,19 +151,25 @@ export default function useChat() {
 
     try {
       let fullContent = '', fullReasoning = '';
-      for await (const chunk of api.regenerateMessage(currentSessionId, provider, model)) {
+      for await (const chunk of api.regenerateMessage(currentSessionId, provider, model, messageId)) {
         if (chunk.type === 'text') { fullContent += chunk.text; setStreamingText(fullContent); }
         else if (chunk.type === 'thinking') { fullReasoning += chunk.text; setThinkingText(fullReasoning); setShowThinking(true); }
         else if (chunk.type === 'thinking_start') { setShowThinking(true); }
         else if (chunk.type === 'done') {
           fullContent = chunk.content || fullContent;
           fullReasoning = chunk.reasoning || fullReasoning;
-          setMessages(prev => [...prev, {
-            id: chunk.messageId || 'msg-' + Date.now(),
-            session_id: currentSessionId, role: 'assistant',
-            content: fullContent, reasoning_content: fullReasoning,
-            created_at: new Date().toISOString(),
-          }]);
+          const deletedSet = new Set(chunk.deletedIds || []);
+          setMessages(prev => {
+            // Remove deleted messages + add new reply
+            const filtered = prev.filter(m => !deletedSet.has(m.id));
+            return [...filtered, {
+              id: chunk.messageId || 'msg-' + Date.now(),
+              session_id: currentSessionId, role: 'assistant',
+              content: fullContent, reasoning_content: fullReasoning,
+              reply_to: null, reply_version: chunk.replyVersion ?? 0,
+              created_at: new Date().toISOString(),
+            }];
+          });
         }
       }
     } catch (err) {
