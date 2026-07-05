@@ -59,8 +59,6 @@ function App() {
         showThinking={showThinking} currentSessionId={currentSessionId}
         hasMore={hasMore} onLoadMore={loadMoreMessages}
         onRegenerate={regenerateLastReply} onSend={sendMessage}
-        onEditMessage={editUserMessage} onDeleteMessage={deleteUserMessage}
-        switchVersion={switchVersion}
         userAvatar={userAvatar} assistantAvatar={assistantAvatar}
         backgroundImage={backgroundImage}
       />
