@@ -123,8 +123,8 @@ async function* streamOpenAICompatible(systemPrompt, messages, settings = {}) {
 
 // --- Model name mapping ---
 const MODEL_MAP = {
-  'claude-full': process.env.MODEL_FULL || 'claude-sonnet-4-6',
-  'claude-max': process.env.MODEL_MAX || 'claude-sonnet-4-6',
+  'claude-full': '熊猫-按量-特供顶级-官方正向满血-claude-sonnet-4.6',
+  'claude-max': '熊猫-按量-顶级特供-官max-claude-sonnet-4.6',
   'claude-direct': 'claude-sonnet-4-6',
 };
 
