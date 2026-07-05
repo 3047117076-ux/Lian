@@ -1,7 +1,7 @@
 {
-  "name": "Bunny & Elliott",
-  "short_name": "Bunny&Ell",
-  "description": "AI Love Companion — Bunny & Elliott",
+  "name": "恋",
+  "short_name": "恋",
+  "description": "恋 — AI Love Companion",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0d0d0d",

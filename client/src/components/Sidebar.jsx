@@ -11,7 +11,7 @@ export default function Sidebar({
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h2>🐰 Bunny & Elliott</h2>
+        <h2>恋</h2>
       </div>
 
       <button className="new-chat-btn" onClick={onNewSession}>

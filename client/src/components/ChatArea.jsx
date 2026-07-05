@@ -37,7 +37,7 @@ export default function ChatArea({
     return (
       <div className="chat-area empty">
         <div className="welcome">
-          <h1>🐰 Bunny & Elliott 💝</h1>
+          <h1>恋</h1>
           <p>Create or select a conversation to start chatting</p>
           <div className="welcome-emoji">🐇✨💕</div>
         </div>
