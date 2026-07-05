@@ -71,14 +71,7 @@ export default function ChatArea({
               <div className="message-bubble">
                 <div className="message-content">
                   {msg.role === 'user' ? (
-                  <EditableContent msg={msg} onEdited={() => {
-                    // Find the assistant reply after this user message
-                    const myIdx = messages.findIndex(m => m.id === msg.id);
-                    const nextAssistant = messages.slice(myIdx + 1).find(m => m.role === 'assistant');
-                    if (nextAssistant) {
-                      onRegenerate && onRegenerate('openai', 'claude-full', nextAssistant.id);
-                    }
-                  }} />
+                  <EditableContent msg={msg} />
                 ) : <MarkdownRenderer content={msg.content} />}
                 </div>
                 {msg.role === 'assistant' && hoveredMsg === msg.id && (
@@ -137,7 +130,7 @@ export default function ChatArea({
   );
 }
 
-function EditableContent({ msg, onEdited }) {
+function EditableContent({ msg }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(msg.content || '');
 
@@ -150,8 +143,6 @@ function EditableContent({ msg, onEdited }) {
       );
       msg.content = text.trim();
       setEditing(false);
-      // Trigger regenerate for the reply after this message
-      if (onEdited) onEdited(msg.id);
     } catch (err) { console.error(err); }
   };
 

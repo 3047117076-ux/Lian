@@ -309,27 +309,9 @@ router.patch('/edit-message', async (req, res) => {
     const { messageId, newContent } = req.body;
     if (!messageId || !newContent) return res.status(400).json({ error: 'messageId and newContent required' });
 
-    // Soft-delete the old version
-    await supabase.from('messages').update({ visible: false }).eq('id', messageId);
-
-    // Get old message to find the session
-    const { data: old } = await supabase.from('messages').select('session_id').eq('id', messageId).single();
-    if (!old) return res.status(404).json({ error: 'Message not found' });
-
-    // Insert new version
-    const newId = uuidv4();
-    const { error } = await supabase.from('messages').insert({
-      id: newId,
-      session_id: old.session_id,
-      role: 'user',
-      content: newContent,
-      visible: true,
-      reply_version: 1,
-      created_at: new Date().toISOString(),
-    });
-
+    const { error } = await supabase.from('messages').update({ content: newContent }).eq('id', messageId);
     if (error) throw error;
-    res.json({ id: newId, content: newContent });
+    res.json({ id: messageId, content: newContent });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
