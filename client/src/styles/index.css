@@ -761,9 +761,25 @@ body {
   text-align: center;
 }
 
-/* --- Editable text --- */
-.editable-text { cursor: pointer; }
-.editable-text:hover { text-decoration: underline; text-decoration-style: dashed; text-decoration-color: var(--text-muted); }
+/* --- User message pen edit --- */
+.user-msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.edit-pen {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.edit-pen:hover { opacity: 1; color: var(--text-primary); }
 
 /* --- Edit Mode --- */
 .edit-mode textarea {

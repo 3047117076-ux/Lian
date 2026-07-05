@@ -71,27 +71,13 @@ export default function ChatArea({
               <div className="message-bubble">
                 <div className="message-content">
                   {msg.role === 'user' ? (
-                  <EditableContent msg={msg} onEdited={(oldId, newId) => {
-                    msg.id = newId;
-                    // Find next assistant msg and regenerate
-                    let idx = messages.findIndex(m => m.id === oldId);
-                    if (idx < 0) idx = messages.findIndex(m => m.id === newId);
-                    const nextAsst = messages.slice(idx + 1).find(m => m.role === 'assistant');
-                    if (nextAsst) {
-                      onRegenerate && onRegenerate('openai', 'claude-full', nextAsst.id);
-                    }
-                  }} />
+                  <EditableContent msg={msg} />
                 ) : <MarkdownRenderer content={msg.content} />}
                 </div>
                 {msg.role === 'assistant' && hoveredMsg === msg.id && (
                   <div className="msg-actions">
                     <button onClick={() => navigator.clipboard.writeText(msg.content)}>copy</button>
                     <button onClick={() => onRegenerate && onRegenerate('openai', 'claude-full', msg.id)}>retry</button>
-                  </div>
-                )}
-                {msg.role === 'user' && hoveredMsg === msg.id && (
-                  <div className="msg-actions">
-                    <button onClick={() => navigator.clipboard.writeText(msg.content)}>copy</button>
                   </div>
                 )}
               </div>
@@ -139,42 +125,39 @@ export default function ChatArea({
   );
 }
 
-function EditableContent({ msg, onEdited }) {
+function EditableContent({ msg }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(msg.content || '');
 
   const submit = async () => {
     if (!text.trim() || text === msg.content) { setEditing(false); return; }
-    try {
-      const API = import.meta.env.DEV ? 'http://localhost:3000/api' : 'https://lian-dq0q.onrender.com/api';
-      const res = await fetch(`${API}/chat/edit-message`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId: msg.id, newContent: text.trim() })
-      });
-      const data = await res.json();
-      setEditing(false);
-      msg.content = text.trim();
-      if (onEdited) onEdited(msg.id, data.id);
-    } catch (err) { console.error(err); }
+    const API = import.meta.env.DEV ? 'http://localhost:3000/api' : 'https://lian-dq0q.onrender.com/api';
+    await fetch(`${API}/chat/edit-message`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId: msg.id, newContent: text.trim() })
+    });
+    msg.content = text.trim();
+    setEditing(false);
   };
 
-  if (!editing) {
+  if (editing) {
     return (
-      <span onClick={() => setEditing(true)} className="editable-text">
-        {msg.content}
-      </span>
+      <div className="edit-mode">
+        <textarea value={text} onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
+          autoFocus />
+        <div className="edit-actions">
+          <button onClick={submit}>save</button>
+          <button onClick={() => { setText(msg.content); setEditing(false); }}>cancel</button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="edit-mode">
-      <textarea value={text} onChange={e => setText(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
-        autoFocus />
-      <div className="edit-actions">
-        <button onClick={submit}>save</button>
-        <button onClick={() => { setText(msg.content); setEditing(false); }}>cancel</button>
-      </div>
+    <div className="user-msg-row">
+      <span>{msg.content}</span>
+      <button className="edit-pen" onClick={() => { setText(msg.content); setEditing(true); }}>✎</button>
     </div>
   );
 }
