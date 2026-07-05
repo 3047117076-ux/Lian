@@ -10,6 +10,8 @@ function App() {
     sessions,
     currentSessionId,
     messages,
+    hasMore,
+    loadMoreMessages,
     isLoading,
     streamingText,
     thinkingText,
@@ -61,6 +63,8 @@ function App() {
         thinkingText={thinkingText}
         showThinking={showThinking}
         currentSessionId={currentSessionId}
+        hasMore={hasMore}
+        onLoadMore={loadMoreMessages}
         onSend={sendMessage}
       />
 

@@ -88,21 +88,38 @@ router.delete('/:id', async (req, res) => {
 
 /**
  * GET /api/sessions/:id/messages
- * Get messages for a session
+ * Get messages for a session (paginated)
+ * Query: ?limit=50&before=<message_id> for "load more"
+ *        ?limit=50 for most recent
  */
 router.get('/:id/messages', async (req, res) => {
   try {
     const { id } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+    const before = req.query.before;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('messages')
       .select('*')
       .eq('session_id', id)
       .eq('visible', true)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
+    if (before) {
+      // Get messages older than 'before'
+      const { data: beforeMsg } = await supabase
+        .from('messages').select('created_at').eq('id', before).single();
+      if (beforeMsg) {
+        query = query.lt('created_at', beforeMsg.created_at);
+      }
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
-    res.json(data || []);
+
+    // Return in chronological order
+    res.json((data || []).reverse());
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

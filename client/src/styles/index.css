@@ -297,6 +297,25 @@ body {
   border-color: var(--text-muted);
 }
 
+/* --- Load more --- */
+.load-more-btn {
+  display: block;
+  margin: 0 auto 12px;
+  padding: 6px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.03em;
+}
+.load-more-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
 /* --- Messages --- */
 .messages-container {
   flex: 1;

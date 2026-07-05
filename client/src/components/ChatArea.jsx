@@ -11,6 +11,8 @@ export default function ChatArea({
   thinkingText,
   showThinking,
   currentSessionId,
+  hasMore,
+  onLoadMore,
   onSend,
 }) {
   const [input, setInput] = useState('');
@@ -61,6 +63,11 @@ export default function ChatArea({
       </div>
 
       <div className="messages-container">
+        {hasMore && (
+          <button className="load-more-btn" onClick={onLoadMore}>
+            ↑ Load earlier messages
+          </button>
+        )}
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}

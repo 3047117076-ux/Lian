@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import * as api from '../utils/api';
 
 export default function useChat() {
@@ -9,9 +9,8 @@ export default function useChat() {
   const [streamingText, setStreamingText] = useState('');
   const [thinkingText, setThinkingText] = useState('');
   const [showThinking, setShowThinking] = useState(false);
-  const abortRef = useRef(null);
+  const [hasMore, setHasMore] = useState(false);
 
-  // Load sessions list
   const loadSessions = useCallback(async () => {
     try {
       const data = await api.getSessions();
@@ -23,11 +22,12 @@ export default function useChat() {
     }
   }, []);
 
-  // Load messages for a session
+  // Load most recent 50 messages
   const loadMessages = useCallback(async (sessionId) => {
     try {
-      const data = await api.getMessages(sessionId);
+      const data = await api.getMessages(sessionId, 50);
       setMessages(data);
+      setHasMore(data.length === 50); // if we got 50, there might be more
       return data;
     } catch (err) {
       console.error('Failed to load messages:', err);
@@ -35,7 +35,21 @@ export default function useChat() {
     }
   }, []);
 
-  // Select/switch to a session
+  // Load older messages (before the earliest one we have)
+  const loadMoreMessages = useCallback(async () => {
+    if (!currentSessionId || messages.length === 0) return;
+    const oldestId = messages[0].id;
+    try {
+      const older = await api.getMessages(currentSessionId, 50, oldestId);
+      if (older.length > 0) {
+        setMessages(prev => [...older, ...prev]);
+      }
+      setHasMore(older.length === 50);
+    } catch (err) {
+      console.error('Failed to load more:', err);
+    }
+  }, [currentSessionId, messages]);
+
   const selectSession = useCallback(async (sessionId) => {
     setCurrentSessionId(sessionId);
     setStreamingText('');
@@ -44,7 +58,6 @@ export default function useChat() {
     await loadMessages(sessionId);
   }, [loadMessages]);
 
-  // Create new session
   const newSession = useCallback(async () => {
     const session = await api.createSession();
     await loadSessions();
@@ -52,7 +65,6 @@ export default function useChat() {
     return session;
   }, [loadSessions, selectSession]);
 
-  // Delete session
   const removeSession = useCallback(async (id) => {
     await api.deleteSession(id);
     await loadSessions();
@@ -62,7 +74,6 @@ export default function useChat() {
     }
   }, [currentSessionId, loadSessions]);
 
-  // Send message
   const sendMessage = useCallback(async (content, provider = 'openai', model = 'claude-full') => {
     if (!currentSessionId || !content.trim()) return;
 
@@ -71,7 +82,6 @@ export default function useChat() {
     setThinkingText('');
     setShowThinking(false);
 
-    // Add user message immediately to UI
     const userMsg = {
       id: 'temp-' + Date.now(),
       session_id: currentSessionId,
@@ -95,13 +105,9 @@ export default function useChat() {
           setShowThinking(true);
         } else if (chunk.type === 'thinking_start') {
           setShowThinking(true);
-        } else if (chunk.type === 'thinking_end') {
-          // keep thinking visible but mark as complete
         } else if (chunk.type === 'done') {
           fullContent = chunk.content || fullContent;
           fullReasoning = chunk.reasoning || fullReasoning;
-
-          // Add assistant message
           const assistantMsg = {
             id: chunk.messageId || 'msg-' + Date.now(),
             session_id: currentSessionId,
@@ -118,12 +124,11 @@ export default function useChat() {
       }
     } catch (err) {
       console.error('Send message error:', err);
-      // Add error message
       setMessages(prev => [...prev, {
         id: 'error-' + Date.now(),
         session_id: currentSessionId,
         role: 'assistant',
-        content: `❌ Error: ${err.message}`,
+        content: `Error: ${err.message}`,
         created_at: new Date().toISOString(),
       }]);
     } finally {
@@ -131,23 +136,15 @@ export default function useChat() {
       setStreamingText('');
       setThinkingText('');
       setShowThinking(false);
-      // Refresh sessions to update order
       loadSessions();
     }
   }, [currentSessionId, loadSessions]);
 
   return {
-    sessions,
-    currentSessionId,
-    messages,
-    isLoading,
-    streamingText,
-    thinkingText,
-    showThinking,
-    loadSessions,
-    selectSession,
-    newSession,
-    removeSession,
-    sendMessage,
+    sessions, currentSessionId, messages,
+    isLoading, streamingText, thinkingText, showThinking,
+    hasMore,
+    loadSessions, selectSession, newSession, removeSession,
+    sendMessage, loadMoreMessages,
   };
 }

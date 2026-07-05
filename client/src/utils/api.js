@@ -79,10 +79,12 @@ export async function deleteSession(id) {
 }
 
 /**
- * Get messages for a session
+ * Get messages for a session (paginated, most recent first)
  */
-export async function getMessages(sessionId) {
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/messages`);
+export async function getMessages(sessionId, limit = 50, before = null) {
+  let url = `${API_BASE}/sessions/${sessionId}/messages?limit=${limit}`;
+  if (before) url += `&before=${before}`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch messages');
   return res.json();
 }
