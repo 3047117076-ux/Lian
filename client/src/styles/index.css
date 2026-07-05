@@ -736,6 +736,10 @@ body {
   text-align: center;
 }
 
+/* --- Editable text --- */
+.editable-text { cursor: pointer; }
+.editable-text:hover { text-decoration: underline; text-decoration-style: dashed; text-decoration-color: var(--text-muted); }
+
 /* --- Edit Mode --- */
 .edit-mode textarea {
   width: 100%;

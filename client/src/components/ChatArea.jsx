@@ -70,12 +70,19 @@ export default function ChatArea({
               )}
               <div className="message-bubble">
                 <div className="message-content">
-                  {msg.role === 'user' ? msg.content : <MarkdownRenderer content={msg.content} />}
+                  {msg.role === 'user' ? (
+                  <EditableContent msg={msg} />
+                ) : <MarkdownRenderer content={msg.content} />}
                 </div>
                 {msg.role === 'assistant' && hoveredMsg === msg.id && (
                   <div className="msg-actions">
                     <button onClick={() => navigator.clipboard.writeText(msg.content)}>copy</button>
                     <button onClick={() => onRegenerate && onRegenerate('openai', 'claude-full', msg.id)}>retry</button>
+                  </div>
+                )}
+                {msg.role === 'user' && hoveredMsg === msg.id && (
+                  <div className="msg-actions">
+                    <button onClick={() => navigator.clipboard.writeText(msg.content)}>copy</button>
                   </div>
                 )}
               </div>
@@ -119,6 +126,41 @@ export default function ChatArea({
           placeholder="say something..." rows={1} disabled={isLoading} />
         <button type="submit" disabled={isLoading || !input.trim()}>send</button>
       </form>
+    </div>
+  );
+}
+
+function EditableContent({ msg }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(msg.content || '');
+
+  const submit = async () => {
+    if (!text.trim() || text === msg.content) { setEditing(false); return; }
+    try {
+      const { editMessage } = await import('../utils/api');
+      await editMessage(msg.id, text.trim());
+      msg.content = text.trim(); // update in-place
+      setEditing(false);
+    } catch (err) { console.error(err); }
+  };
+
+  if (!editing) {
+    return (
+      <span onClick={() => setEditing(true)} className="editable-text">
+        {msg.content}
+      </span>
+    );
+  }
+
+  return (
+    <div className="edit-mode">
+      <textarea value={text} onChange={e => setText(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
+        autoFocus />
+      <div className="edit-actions">
+        <button onClick={submit}>save</button>
+        <button onClick={() => { setText(msg.content); setEditing(false); }}>cancel</button>
+      </div>
     </div>
   );
 }
