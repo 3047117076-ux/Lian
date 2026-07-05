@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import { sendMessage } from '../utils/api';
 
 /**
  * ChatArea — the main chat display and input area
