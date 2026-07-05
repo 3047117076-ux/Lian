@@ -71,7 +71,16 @@ export default function ChatArea({
               <div className="message-bubble">
                 <div className="message-content">
                   {msg.role === 'user' ? (
-                  <EditableContent msg={msg} />
+                  <EditableContent msg={msg} onEdited={(oldId, newId, versionGroup) => {
+                    msg.id = newId;
+                    msg.version_group = versionGroup;
+                    let idx = messages.findIndex(m => m.id === oldId);
+                    if (idx < 0) idx = messages.findIndex(m => m.id === newId);
+                    const nextAsst = messages.slice(idx + 1).find(m => m.role === 'assistant');
+                    if (nextAsst) {
+                      onRegenerate && onRegenerate('openai', 'claude-full', nextAsst.id);
+                    }
+                  }} />
                 ) : <MarkdownRenderer content={msg.content} />}
                 </div>
                 {msg.role === 'assistant' && hoveredMsg === msg.id && (
@@ -130,19 +139,21 @@ export default function ChatArea({
   );
 }
 
-function EditableContent({ msg }) {
+function EditableContent({ msg, onEdited }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(msg.content || '');
 
   const submit = async () => {
     if (!text.trim() || text === msg.content) { setEditing(false); return; }
     try {
-      await fetch(
-        import.meta.env.DEV ? 'http://localhost:3000/api/chat/edit-message' : 'https://lian-dq0q.onrender.com/api/chat/edit-message',
-        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId: msg.id, newContent: text.trim() }) }
-      );
-      msg.content = text.trim();
+      const API = import.meta.env.DEV ? 'http://localhost:3000/api' : 'https://lian-dq0q.onrender.com/api';
+      const res = await fetch(`${API}/chat/edit-message`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: msg.id, newContent: text.trim() })
+      });
+      const data = await res.json();
       setEditing(false);
+      if (onEdited) onEdited(msg.id, data.id, data.versionGroup);
     } catch (err) { console.error(err); }
   };
 

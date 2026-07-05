@@ -278,21 +278,30 @@ router.post('/regenerate', async (req, res) => {
 
 /**
  * GET /api/chat/versions
- * Get all reply versions for a user message
+ * Get all reply versions — by reply_to or by version_group
  */
 router.get('/versions', async (req, res) => {
   try {
-    const replyTo = req.query.reply_to;
-    if (!replyTo) return res.status(400).json({ error: 'reply_to required' });
+    const { reply_to, version_group } = req.query;
+    let query;
 
-    const { data, error } = await supabase
-      .from('messages')
-      .select('id, content, reply_version, created_at')
-      .eq('reply_to', replyTo)
-      .eq('role', 'assistant')
-      .eq('visible', true)
-      .order('reply_version', { ascending: true });
+    if (reply_to) {
+      query = supabase.from('messages')
+        .select('id, content, role, reply_version, created_at')
+        .eq('reply_to', reply_to)
+        .eq('visible', true)
+        .order('reply_version', { ascending: true });
+    } else if (version_group) {
+      query = supabase.from('messages')
+        .select('id, content, role, reply_version, created_at')
+        .eq('version_group', version_group)
+        .eq('visible', true)
+        .order('reply_version', { ascending: true });
+    } else {
+      return res.status(400).json({ error: 'reply_to or version_group required' });
+    }
 
+    const { data, error } = await query;
     if (error) throw error;
     res.json(data || []);
   } catch (err) {
@@ -309,9 +318,31 @@ router.patch('/edit-message', async (req, res) => {
     const { messageId, newContent } = req.body;
     if (!messageId || !newContent) return res.status(400).json({ error: 'messageId and newContent required' });
 
-    const { error } = await supabase.from('messages').update({ content: newContent }).eq('id', messageId);
+    // Get the old message
+    const { data: old } = await supabase.from('messages').select('*').eq('id', messageId).single();
+    if (!old) return res.status(404).json({ error: 'Message not found' });
+
+    const versionGroup = old.version_group || old.id;
+    const nextVersion = (old.reply_version || 0) + 1;
+
+    // Soft-delete the old version
+    await supabase.from('messages').update({ visible: false }).eq('id', messageId);
+
+    // Create new version
+    const newId = uuidv4();
+    const { error } = await supabase.from('messages').insert({
+      id: newId,
+      session_id: old.session_id,
+      role: 'user',
+      content: newContent,
+      visible: true,
+      version_group: versionGroup,
+      reply_version: nextVersion,
+      created_at: new Date().toISOString(),
+    });
     if (error) throw error;
-    res.json({ id: messageId, content: newContent });
+
+    res.json({ id: newId, content: newContent, versionGroup, replyVersion: nextVersion });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
