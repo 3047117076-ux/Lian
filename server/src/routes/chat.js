@@ -5,7 +5,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../services/supabase');
 const { streamAI, buildSystemPrompt, buildMessages } = require('../services/ai');
-const { getMemories, maybeCompress } = require('../services/memory');
+const { getMemories, smartCompress } = require('../services/memory');
 const { v4: uuidv4 } = require('uuid');
 
 /**
@@ -108,7 +108,7 @@ router.post('/send', async (req, res) => {
 
     // Check if compression is needed (async, don't block response)
     const messageCount = (history?.length || 0) + 2; // +2 for the user+assistant just added
-    maybeCompress(sessionId, settings, messageCount).catch(err =>
+    smartCompress(sessionId, settings, messageCount).catch(err =>
       console.error('Compress error:', err.message)
     );
 

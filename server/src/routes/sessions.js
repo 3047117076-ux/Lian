@@ -51,8 +51,8 @@ router.post('/', async (req, res) => {
       temperature: 0.8,
       max_context_rounds: 50,
       max_context_tokens: 100000,
-      compress_threshold: 50,
-      compress_keep_rounds: 10,
+      compress_threshold: 15,
+      compress_keep_rounds: 5,
       max_reply_tokens: 4096,
       updated_at: now,
     });
