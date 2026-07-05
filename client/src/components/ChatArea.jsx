@@ -13,6 +13,7 @@ export default function ChatArea({
   currentSessionId,
   hasMore,
   onLoadMore,
+  onRegenerate,
   onSend,
 }) {
   const [input, setInput] = useState('');
@@ -98,6 +99,11 @@ export default function ChatArea({
           </div>
         )}
 
+        {messages.length > 0 && !isLoading && (
+          <button className="regenerate-btn" onClick={() => onRegenerate && onRegenerate('openai', model)}>
+            ↩ 换一个回复
+          </button>
+        )}
         <div ref={messagesEndRef} />
       </div>
 

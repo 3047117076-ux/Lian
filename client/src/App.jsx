@@ -65,6 +65,7 @@ function App() {
         currentSessionId={currentSessionId}
         hasMore={hasMore}
         onLoadMore={loadMoreMessages}
+        onRegenerate={regenerateLastReply}
         onSend={sendMessage}
       />
 

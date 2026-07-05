@@ -140,11 +140,54 @@ export default function useChat() {
     }
   }, [currentSessionId, loadSessions]);
 
+  // Regenerate last reply
+  const regenerateLastReply = useCallback(async (provider = 'openai', model = 'claude-full') => {
+    if (!currentSessionId || isLoading) return;
+
+    // Remove last assistant message from UI
+    setMessages(prev => {
+      let lastIdx = -1;
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (prev[i].role === 'assistant') { lastIdx = i; break; }
+      }
+      if (lastIdx < 0) return prev;
+      return prev.slice(0, lastIdx);
+    });
+
+    setIsLoading(true);
+    setStreamingText('');
+    setThinkingText('');
+    setShowThinking(false);
+
+    try {
+      let fullContent = '', fullReasoning = '';
+      for await (const chunk of api.regenerateMessage(currentSessionId, provider, model)) {
+        if (chunk.type === 'text') { fullContent += chunk.text; setStreamingText(fullContent); }
+        else if (chunk.type === 'thinking') { fullReasoning += chunk.text; setThinkingText(fullReasoning); setShowThinking(true); }
+        else if (chunk.type === 'thinking_start') { setShowThinking(true); }
+        else if (chunk.type === 'done') {
+          fullContent = chunk.content || fullContent;
+          fullReasoning = chunk.reasoning || fullReasoning;
+          setMessages(prev => [...prev, {
+            id: chunk.messageId || 'msg-' + Date.now(),
+            session_id: currentSessionId, role: 'assistant',
+            content: fullContent, reasoning_content: fullReasoning,
+            created_at: new Date().toISOString(),
+          }]);
+        }
+      }
+    } catch (err) {
+      console.error('Regenerate error:', err);
+    } finally {
+      setIsLoading(false); setStreamingText(''); setThinkingText(''); setShowThinking(false);
+    }
+  }, [currentSessionId, isLoading]);
+
   return {
     sessions, currentSessionId, messages,
     isLoading, streamingText, thinkingText, showThinking,
     hasMore,
     loadSessions, selectSession, newSession, removeSession,
-    sendMessage, loadMoreMessages,
+    sendMessage, loadMoreMessages, regenerateLastReply,
   };
 }

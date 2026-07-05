@@ -48,6 +48,36 @@ export async function* sendMessage(sessionId, message, provider = 'openai', mode
 }
 
 /**
+ * Regenerate last AI reply
+ */
+export async function* regenerateMessage(sessionId, provider = 'openai', model = 'claude-full') {
+  const response = await fetch(`${API_BASE}/chat/regenerate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId, provider, model }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error || 'Request failed');
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try { yield JSON.parse(line.slice(6)); } catch {}
+      }
+    }
+  }
+}
+
+/**
  * Get all sessions
  */
 export async function getSessions() {

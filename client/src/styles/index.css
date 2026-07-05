@@ -297,6 +297,25 @@ body {
   border-color: var(--text-muted);
 }
 
+/* --- Regenerate --- */
+.regenerate-btn {
+  display: block;
+  margin: 8px auto;
+  padding: 5px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.02em;
+}
+.regenerate-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
 /* --- Load more --- */
 .load-more-btn {
   display: block;
