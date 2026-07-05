@@ -48,6 +48,41 @@ export async function* sendMessage(sessionId, message, provider = 'openai', mode
 }
 
 /**
+ * Get all reply versions for a user message
+ */
+export async function getVersions(replyTo) {
+  const res = await fetch(`${API_BASE}/chat/versions?reply_to=${replyTo}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+/**
+ * Edit a user message
+ */
+export async function editMessage(messageId, newContent) {
+  const res = await fetch(`${API_BASE}/chat/edit-message`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messageId, newContent }),
+  });
+  if (!res.ok) throw new Error('Failed to edit message');
+  return res.json();
+}
+
+/**
+ * Delete a message (soft delete)
+ */
+export async function deleteMessage(messageId) {
+  const res = await fetch(`${API_BASE}/chat/delete-message`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messageId }),
+  });
+  if (!res.ok) throw new Error('Failed to delete message');
+  return res.json();
+}
+
+/**
  * Regenerate last AI reply
  */
 export async function* regenerateMessage(sessionId, provider = 'openai', model = 'claude-full') {

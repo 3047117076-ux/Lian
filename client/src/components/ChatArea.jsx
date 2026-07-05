@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { getVersions } from '../utils/api';
 
 /**
  * ChatArea — the main chat display and input area
@@ -14,6 +15,8 @@ export default function ChatArea({
   onLoadMore,
   onRegenerate,
   onSend,
+  onEditMessage,
+  onDeleteMessage,
   userAvatar,
   assistantAvatar,
   backgroundImage,
@@ -76,7 +79,13 @@ export default function ChatArea({
           </button>
         )}
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} avatar={msg.role === 'user' ? userAvatar : assistantAvatar} />
+          <MessageBubble key={msg.id} message={msg}
+            avatar={msg.role === 'user' ? userAvatar : assistantAvatar}
+            onEdit={onEditMessage}
+            onDelete={onDeleteMessage}
+            onSwitchVersion={switchVersion}
+            onRegenerate={onRegenerate}
+          />
         ))}
 
         {/* Thinking indicator */}
@@ -142,47 +151,113 @@ export default function ChatArea({
 const defaultUserSvg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="#2a2a2a" width="100" height="100"/><text y=".68em" x="50" text-anchor="middle" font-size="55">🐰</text></svg>');
 const defaultAssistantSvg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="#1a1a1a" width="100" height="100"/><text y=".68em" x="50" text-anchor="middle" font-size="55">🐇</text></svg>');
 
-function MessageBubble({ message, avatar }) {
+function MessageBubble({ message, avatar, onEdit, onDelete, onSwitchVersion, onRegenerate }) {
+  const [hover, setHover] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState('');
   const [showReasoning, setShowReasoning] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState(message.reply_version ?? 0);
+  const [versions, setVersions] = useState([]);
+
   const avatarSrc = avatar || (message.role === 'user' ? defaultUserSvg : defaultAssistantSvg);
+  const versionCount = versions.length > 0 ? versions.length : 1;
+  const isImported = !message.reply_to && !message.reply_version; // no version info = imported
+
+  // Copy content
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content || '').catch(() => {});
+  };
+
+  // Start editing
+  const startEdit = () => { setEditText(message.content || ''); setEditing(true); };
+  const submitEdit = () => {
+    if (editText.trim() && editText !== message.content) {
+      onEdit && onEdit(message.id, editText.trim());
+    }
+    setEditing(false);
+  };
+
+  // Load versions for assistant messages
+  const loadVersions = async () => {
+    if (!message.reply_to) return;
+    try {
+      const v = await getVersions(message.reply_to);
+      setVersions(v);
+    } catch {}
+  };
+
+  const switchToVersion = (v) => {
+    setCurrentVersion(v);
+    onSwitchVersion && onSwitchVersion(message.reply_to, v);
+  };
 
   if (message.role === 'user') {
     return (
-      <div className="message user">
+      <div className="message user" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
         <div className="message-body">
-          <div className="message-content">{message.content}</div>
+          <div className="message-bubble">
+            {editing ? (
+              <div className="edit-mode">
+                <textarea value={editText} onChange={e => setEditText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(); } }}
+                  autoFocus />
+                <div className="edit-actions">
+                  <button onClick={submitEdit}>Save</button>
+                  <button onClick={() => setEditing(false)}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="message-content">{message.content}</div>
+            )}
+            {hover && !editing && (
+              <div className="msg-toolbar">
+                <button onClick={startEdit} title="Edit">✏</button>
+                <button onClick={() => onDelete && onDelete(message.id)} title="Delete">✕</button>
+                <button onClick={handleCopy} title="Copy">📋</button>
+              </div>
+            )}
+          </div>
           <div className="message-avatar"><img src={avatarSrc} alt="" /></div>
         </div>
       </div>
     );
   }
 
-  if (message.role === 'assistant') {
-    return (
-      <div className="message assistant">
-        <div className="message-body">
-          <div className="message-avatar"><img src={avatarSrc} alt="" /></div>
-          <div className="message-bubble">
-            {message.reasoning_content && (
-              <div className="reasoning-toggle">
-                <button onClick={() => setShowReasoning(!showReasoning)}>
-                  {showReasoning ? 'Hide thinking' : 'Show thinking'}
-                </button>
-                {showReasoning && (
-                  <div className="reasoning-content">{message.reasoning_content}</div>
-                )}
-              </div>
-            )}
-            <div className="message-content">
-              <MarkdownRenderer content={message.content} />
+  // Assistant message
+  return (
+    <div className="message assistant" onMouseEnter={() => { setHover(true); loadVersions(); }} onMouseLeave={() => setHover(false)}>
+      <div className="message-body">
+        <div className="message-avatar"><img src={avatarSrc} alt="" /></div>
+        <div className="message-bubble">
+          {message.reasoning_content && (
+            <div className="reasoning-toggle">
+              <button onClick={() => setShowReasoning(!showReasoning)}>
+                {showReasoning ? 'Hide thinking' : 'Show thinking'}
+              </button>
+              {showReasoning && <div className="reasoning-content">{message.reasoning_content}</div>}
             </div>
+          )}
+          <div className="message-content">
+            <MarkdownRenderer content={message.content} />
+          </div>
+          {/* Toolbar */}
+          <div className="msg-toolbar">
+            {versions.length > 1 && (
+              <>
+                <button onClick={() => { const cv = currentVersion; const idx = versions.findIndex(v => v.reply_version === cv); if (idx > 0) switchToVersion(versions[idx-1].reply_version); }}
+                  disabled={versions.findIndex(v => v.reply_version === currentVersion) <= 0}>◂</button>
+                <span className="version-info">{versions.findIndex(v => v.reply_version === currentVersion) + 1}/{versionCount}</span>
+                <button onClick={() => { const idx = versions.findIndex(v => v.reply_version === currentVersion); if (idx < versionCount - 1) switchToVersion(versions[idx+1].reply_version); }}
+                  disabled={versions.findIndex(v => v.reply_version === currentVersion) >= versionCount - 1}>▸</button>
+              </>
+            )}
+            <button onClick={handleCopy} title="Copy">📋</button>
+            <button onClick={() => onRegenerate && onRegenerate('openai', 'claude-full')} title="Regenerate">↻</button>
           </div>
         </div>
       </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }
 
 /**

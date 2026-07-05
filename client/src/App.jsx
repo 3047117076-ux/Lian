@@ -23,6 +23,9 @@ function App() {
     removeSession,
     sendMessage,
     regenerateLastReply,
+    editUserMessage,
+    deleteUserMessage,
+    switchVersion,
   } = useChat();
 
   const [showSettings, setShowSettings] = useState(false);
@@ -83,6 +86,9 @@ function App() {
         onLoadMore={loadMoreMessages}
         onRegenerate={regenerateLastReply}
         onSend={sendMessage}
+        onEditMessage={editUserMessage}
+        onDeleteMessage={deleteUserMessage}
+        switchVersion={switchVersion}
         userAvatar={userAvatar}
         assistantAvatar={assistantAvatar}
         backgroundImage={backgroundImage}

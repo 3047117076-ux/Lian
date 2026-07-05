@@ -183,11 +183,51 @@ export default function useChat() {
     }
   }, [currentSessionId, isLoading]);
 
+  // Edit a user message
+  const editUserMessage = useCallback(async (messageId, newContent) => {
+    try {
+      await api.editMessage(messageId, newContent);
+      // Reload messages to get the updated state
+      await loadMessages(currentSessionId);
+    } catch (err) {
+      console.error('Edit error:', err);
+    }
+  }, [currentSessionId, loadMessages]);
+
+  // Delete a message
+  const deleteUserMessage = useCallback(async (messageId) => {
+    try {
+      await api.deleteMessage(messageId);
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+    } catch (err) {
+      console.error('Delete error:', err);
+    }
+  }, []);
+
+  // Switch to a different reply version
+  const switchVersion = useCallback(async (replyTo, version) => {
+    // Find the version and show it
+    const versions = await api.getVersions(replyTo);
+    const target = versions.find(v => v.reply_version === version);
+    if (target) {
+      setMessages(prev => {
+        // Replace the assistant message with the target version
+        return prev.map(m => {
+          if (m.role === 'assistant' && m.reply_to === replyTo) {
+            return { ...m, content: target.content, id: target.id, reply_version: version };
+          }
+          return m;
+        });
+      });
+    }
+  }, []);
+
   return {
     sessions, currentSessionId, messages,
     isLoading, streamingText, thinkingText, showThinking,
     hasMore,
     loadSessions, selectSession, newSession, removeSession,
     sendMessage, loadMoreMessages, regenerateLastReply,
+    editUserMessage, deleteUserMessage, switchVersion,
   };
 }

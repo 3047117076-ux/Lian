@@ -552,6 +552,84 @@ body {
   line-height: 1.5;
 }
 
+/* --- Message Toolbar --- */
+.msg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.message:hover .msg-toolbar {
+  opacity: 1;
+}
+
+.msg-toolbar button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 2px 5px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+
+.msg-toolbar button:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.msg-toolbar button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.version-info {
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 24px;
+  text-align: center;
+}
+
+/* --- Edit Mode --- */
+.edit-mode textarea {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  padding: 8px 10px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  min-height: 40px;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.edit-actions button {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.edit-actions button:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
 /* --- Reasoning toggle --- */
 .reasoning-toggle {
   margin-bottom: 6px;

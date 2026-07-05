@@ -54,6 +54,7 @@ router.post('/send', async (req, res) => {
       role: 'user',
       content: message,
       visible: true,
+      reply_version: 0,
       created_at: new Date().toISOString(),
     });
 
@@ -100,6 +101,8 @@ router.post('/send', async (req, res) => {
       content: fullContent,
       reasoning_content: fullReasoning || null,
       visible: true,
+      reply_to: userMsgId,
+      reply_version: 0,
       created_at: new Date().toISOString(),
     });
 
@@ -131,21 +134,7 @@ router.post('/regenerate', async (req, res) => {
     const { sessionId, provider, model } = req.body;
     if (!sessionId) return res.status(400).json({ error: 'sessionId required' });
 
-    // Find and delete last assistant message
-    const { data: lastAssistant } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('session_id', sessionId)
-      .eq('role', 'assistant')
-      .eq('visible', true)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (lastAssistant?.length > 0) {
-      await supabase.from('messages').update({ visible: false }).eq('id', lastAssistant[0].id);
-    }
-
-    // Find last user message
+    // Find last user message to regenerate from
     const { data: lastUser } = await supabase
       .from('messages')
       .select('*')
@@ -159,7 +148,19 @@ router.post('/regenerate', async (req, res) => {
       return res.status(400).json({ error: 'No user message to regenerate from' });
     }
 
+    const userMsgId = lastUser[0].id;
     const message = lastUser[0].content;
+
+    // Find highest existing version for replies to this user message
+    const { data: versions } = await supabase
+      .from('messages')
+      .select('reply_version')
+      .eq('reply_to', userMsgId)
+      .eq('role', 'assistant')
+      .order('reply_version', { ascending: false })
+      .limit(1);
+
+    const nextVersion = (versions?.[0]?.reply_version ?? -1) + 1;
 
     // Now do a normal send
     res.setHeader('Content-Type', 'text/event-stream');
@@ -197,16 +198,93 @@ router.post('/regenerate', async (req, res) => {
     await supabase.from('messages').insert({
       id: assistantMsgId, session_id: sessionId, role: 'assistant',
       content: fullContent, reasoning_content: fullReasoning || null,
-      visible: true, created_at: new Date().toISOString(),
+      visible: true, reply_to: userMsgId, reply_version: nextVersion,
+      created_at: new Date().toISOString(),
     });
 
-    res.write(`data: ${JSON.stringify({ type: 'done', messageId: assistantMsgId })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'done', messageId: assistantMsgId, replyVersion: nextVersion })}\n\n`);
     res.end();
   } catch (err) {
     console.error('Regenerate error:', err);
     if (!res.headersSent) return res.status(500).json({ error: err.message });
     res.write(`data: ${JSON.stringify({ type: 'error', message: err.message })}\n\n`);
     res.end();
+  }
+});
+
+/**
+ * GET /api/chat/versions
+ * Get all reply versions for a user message
+ */
+router.get('/versions', async (req, res) => {
+  try {
+    const replyTo = req.query.reply_to;
+    if (!replyTo) return res.status(400).json({ error: 'reply_to required' });
+
+    const { data, error } = await supabase
+      .from('messages')
+      .select('id, content, reply_version, created_at')
+      .eq('reply_to', replyTo)
+      .eq('role', 'assistant')
+      .eq('visible', true)
+      .order('reply_version', { ascending: true });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/chat/edit-message
+ * Edit a user message (creates new version)
+ */
+router.patch('/edit-message', async (req, res) => {
+  try {
+    const { messageId, newContent } = req.body;
+    if (!messageId || !newContent) return res.status(400).json({ error: 'messageId and newContent required' });
+
+    // Soft-delete the old version
+    await supabase.from('messages').update({ visible: false }).eq('id', messageId);
+
+    // Get old message to find the session
+    const { data: old } = await supabase.from('messages').select('session_id').eq('id', messageId).single();
+    if (!old) return res.status(404).json({ error: 'Message not found' });
+
+    // Insert new version
+    const newId = uuidv4();
+    const { error } = await supabase.from('messages').insert({
+      id: newId,
+      session_id: old.session_id,
+      role: 'user',
+      content: newContent,
+      visible: true,
+      reply_version: 1,
+      created_at: new Date().toISOString(),
+    });
+
+    if (error) throw error;
+    res.json({ id: newId, content: newContent });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/chat/delete-message
+ * Soft delete a message
+ */
+router.patch('/delete-message', async (req, res) => {
+  try {
+    const { messageId } = req.body;
+    if (!messageId) return res.status(400).json({ error: 'messageId required' });
+
+    const { error } = await supabase.from('messages').update({ visible: false }).eq('id', messageId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
