@@ -12,7 +12,7 @@ export default function ChatArea({
   const [model, setModel] = useState('claude-full');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const [replyVersions, setReplyVersions] = useState({}); // { versionGroup: { versions: [...], activeIdx: N } }
+  const [replyVersions, setReplyVersions] = useState({});
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -88,7 +88,7 @@ export default function ChatArea({
         {hasMore && (
           <button className="load-more-btn" onClick={onLoadMore}>Load earlier</button>
         )}
-        {messages.map((msg, idx) => (
+        {displayMessages.map((msg, idx) => (
           <div key={msg.id} className={`message ${msg.role}`}
             onMouseEnter={() => setHoveredMsg(msg.id)}
             onMouseLeave={() => setHoveredMsg(null)}>

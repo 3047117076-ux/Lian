@@ -151,12 +151,10 @@ router.post('/regenerate', async (req, res) => {
     let deletedIds = [];
 
     if (messageId) {
-      // Find the target assistant message
       const { data: targetMsg } = await supabase
         .from('messages').select('*').eq('id', messageId).single();
       if (!targetMsg) return res.status(404).json({ error: 'Message not found' });
 
-      // Find the user message right before it (same session, visible, user role, created before target)
       const { data: userMsg } = await supabase
         .from('messages')
         .select('*')
@@ -173,19 +171,7 @@ router.post('/regenerate', async (req, res) => {
 
       userMsgId = userMsg[0].id;
       message = userMsg[0].content;
-
-      // Soft-delete the target assistant message and everything after it
-      const { data: toDelete } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('session_id', sessionId)
-        .eq('visible', true)
-        .gte('created_at', targetMsg.created_at);
-
-      if (toDelete) {
-        deletedIds = toDelete.map(m => m.id);
-        await supabase.from('messages').update({ visible: false }).in('id', deletedIds);
-      }
+      // Keep old reply visible — don't delete anything
     } else {
       // No messageId: regenerate from the last user message
       const { data: lastUser } = await supabase
@@ -203,20 +189,7 @@ router.post('/regenerate', async (req, res) => {
       userMsgId = lastUser[0].id;
       message = lastUser[0].content;
 
-      // Hide last assistant message
-      const { data: lastAssistant } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('session_id', sessionId)
-        .eq('role', 'assistant')
-        .eq('visible', true)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (lastAssistant?.length > 0) {
-        deletedIds = [lastAssistant[0].id];
-        await supabase.from('messages').update({ visible: false }).in('id', deletedIds);
-      }
+      // Keep old reply — don't hide
     }
 
     // Find version number
@@ -339,8 +312,7 @@ router.patch('/edit-message', async (req, res) => {
     const versionGroup = old.version_group || old.id;
     const nextVersion = (old.reply_version || 0) + 1;
 
-    await supabase.from('messages').update({ visible: false }).eq('id', messageId);
-
+    // Create new version — keep old one visible too
     const newId = uuidv4();
     await supabase.from('messages').insert({
       id: newId, session_id: old.session_id, role: 'user',
@@ -349,13 +321,9 @@ router.patch('/edit-message', async (req, res) => {
       created_at: new Date().toISOString(),
     });
 
-    // Only hide the first AI reply directly after this message
-    const { data: nextAsst } = await supabase.from('messages')
-      .select('id').eq('session_id', old.session_id).eq('role', 'assistant')
-      .eq('visible', true).gt('created_at', old.created_at)
-      .order('created_at', { ascending: true }).limit(1);
-    if (nextAsst?.length > 0) {
-      await supabase.from('messages').update({ visible: false }).eq('id', nextAsst[0].id);
+    // Mark old version with version_group so it's grouped
+    if (!old.version_group) {
+      await supabase.from('messages').update({ version_group: versionGroup, reply_version: 0 }).eq('id', messageId);
     }
 
     res.json({ id: newId, content: newContent, versionGroup, replyVersion: nextVersion });
