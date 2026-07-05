@@ -332,29 +332,29 @@ router.patch('/edit-message', async (req, res) => {
     const { messageId, newContent } = req.body;
     if (!messageId || !newContent) return res.status(400).json({ error: 'messageId and newContent required' });
 
-    // Get the old message
     const { data: old } = await supabase.from('messages').select('*').eq('id', messageId).single();
     if (!old) return res.status(404).json({ error: 'Message not found' });
 
+    // Create new version (keep old as hidden)
     const versionGroup = old.version_group || old.id;
     const nextVersion = (old.reply_version || 0) + 1;
 
-    // Soft-delete the old version
     await supabase.from('messages').update({ visible: false }).eq('id', messageId);
 
-    // Create new version
     const newId = uuidv4();
-    const { error } = await supabase.from('messages').insert({
-      id: newId,
-      session_id: old.session_id,
-      role: 'user',
-      content: newContent,
-      visible: true,
-      version_group: versionGroup,
-      reply_version: nextVersion,
+    await supabase.from('messages').insert({
+      id: newId, session_id: old.session_id, role: 'user',
+      content: newContent, visible: true,
+      version_group: versionGroup, reply_version: nextVersion,
       created_at: new Date().toISOString(),
     });
-    if (error) throw error;
+
+    // Also hide assistant messages that came after this user message
+    await supabase.from('messages').update({ visible: false })
+      .eq('session_id', old.session_id)
+      .eq('role', 'assistant')
+      .eq('visible', true)
+      .gt('created_at', old.created_at);
 
     res.json({ id: newId, content: newContent, versionGroup, replyVersion: nextVersion });
   } catch (err) {

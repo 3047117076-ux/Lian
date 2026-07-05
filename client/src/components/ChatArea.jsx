@@ -12,7 +12,6 @@ export default function ChatArea({
   const [model, setModel] = useState('claude-full');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const [msgVersions, setMsgVersions] = useState({}); // { versionGroup: { versions: [...], current: N } }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -21,38 +20,6 @@ export default function ChatArea({
   useEffect(() => {
     inputRef.current?.focus();
   }, [currentSessionId]);
-
-  const loadVersions = async (msg) => {
-    const vg = msg.version_group;
-    if (!vg) return;
-    try {
-      const API = import.meta.env.DEV ? 'http://localhost:3000/api' : 'https://lian-dq0q.onrender.com/api';
-      const res = await fetch(`${API}/chat/versions?version_group=${vg}`);
-      const data = await res.json();
-      if (data.length > 1) {
-        const current = (msg.reply_version || 0);
-        setMsgVersions(prev => ({ ...prev, [vg]: { versions: data, current } }));
-      }
-    } catch {}
-  };
-
-  const switchMsgVersion = (vg, direction) => {
-    const info = msgVersions[vg];
-    if (!info) return;
-    const newIdx = info.current + direction;
-    if (newIdx < 0 || newIdx >= info.versions.length) return;
-    setMsgVersions(prev => ({ ...prev, [vg]: { ...info, current: newIdx } }));
-    // Update the message content in-place
-    const target = info.versions[newIdx];
-    const msg = messages.find(m => m.version_group === vg || m.id === target.id);
-    if (msg) {
-      msg.content = target.content;
-      msg.id = target.id;
-      msg.reply_version = target.reply_version;
-      // Force re-render
-      setHoveredMsg(null);
-    }
-  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -95,78 +62,31 @@ export default function ChatArea({
         )}
         {messages.map((msg, idx) => (
           <div key={msg.id} className={`message ${msg.role}`}
-            onMouseEnter={() => { setHoveredMsg(msg.id); if (msg.version_group) loadVersions(msg); }}
+            onMouseEnter={() => setHoveredMsg(msg.id)}
             onMouseLeave={() => setHoveredMsg(null)}>
             <div className="message-body">
               {msg.role === 'assistant' && (
                 <div className="message-avatar"><img src={assistantAvatar || defaultAssistantSvg} alt="" /></div>
               )}
               <div className="message-bubble">
-                {msg.role === 'assistant' && msg.version_group && msgVersions[msg.version_group] && msgVersions[msg.version_group].versions.length > 1 && (
-                  <div className="version-switcher">
-                    <button onClick={() => {
-                      const info = msgVersions[msg.version_group];
-                      if (info.current <= 0) return;
-                      const newCurrent = info.current - 1;
-                      setMsgVersions(prev => ({ ...prev, [msg.version_group]: { ...info, current: newCurrent } }));
-                      const target = info.versions[newCurrent];
-                      msg.content = target.content;
-                      msg.id = target.id;
-                      msg.reply_version = target.reply_version;
-                      setHoveredMsg(null);
-                    }} disabled={msgVersions[msg.version_group].current <= 0}>◂</button>
-                    <span>{msgVersions[msg.version_group].current + 1}/{msgVersions[msg.version_group].versions.length}</span>
-                    <button onClick={() => {
-                      const info = msgVersions[msg.version_group];
-                      if (info.current >= info.versions.length - 1) return;
-                      const newCurrent = info.current + 1;
-                      setMsgVersions(prev => ({ ...prev, [msg.version_group]: { ...info, current: newCurrent } }));
-                      const target = info.versions[newCurrent];
-                      msg.content = target.content;
-                      msg.id = target.id;
-                      msg.reply_version = target.reply_version;
-                      setHoveredMsg(null);
-                    }} disabled={msgVersions[msg.version_group].current >= msgVersions[msg.version_group].versions.length - 1}>▸</button>
-                  </div>
-                )}
                 <div className="message-content">
                   {msg.role === 'user' ? (
-                  <div>
-                    {msg.version_group && msgVersions[msg.version_group] && msgVersions[msg.version_group].versions.length > 1 && (
-                      <div className="version-switcher">
-                        <button onClick={() => switchMsgVersion(msg.version_group, -1)}
-                          disabled={msgVersions[msg.version_group].current <= 0}>◂</button>
-                        <span>{msgVersions[msg.version_group].current + 1}/{msgVersions[msg.version_group].versions.length}</span>
-                        <button onClick={() => switchMsgVersion(msg.version_group, 1)}
-                          disabled={msgVersions[msg.version_group].current >= msgVersions[msg.version_group].versions.length - 1}>▸</button>
-                      </div>
-                    )}
-                    <EditableContent msg={msg} onEdited={(oldId, newId, versionGroup, replyVersion) => {
-                      msg.id = newId;
-                      msg.version_group = versionGroup;
-                      msg.reply_version = replyVersion;
-                      // Directly set version state without API call
-                      const oldVersion = { id: oldId, content: msg.content, role: 'user', reply_version: (replyVersion || 1) - 1, visible: false };
-                      const newVersion = { id: newId, content: msg.content, role: 'user', reply_version: replyVersion || 1, visible: true };
-                      setMsgVersions(prev => ({ ...prev, [versionGroup]: { versions: [oldVersion, newVersion], current: 1 } }));
-                      let idx = messages.findIndex(m => m.id === oldId);
-                      if (idx < 0) idx = messages.findIndex(m => m.id === newId);
-                      const nextAsst = messages.slice(idx + 1).find(m => m.role === 'assistant');
-                      if (nextAsst) {
-                        onRegenerate && onRegenerate('openai', 'claude-full', nextAsst.id);
-                      }
-                    }} />
-                  </div>
+                  <EditableContent msg={msg} onEdited={(oldId, newId) => {
+                    msg.id = newId;
+                    // Find next assistant msg and regenerate
+                    let idx = messages.findIndex(m => m.id === oldId);
+                    if (idx < 0) idx = messages.findIndex(m => m.id === newId);
+                    const nextAsst = messages.slice(idx + 1).find(m => m.role === 'assistant');
+                    if (nextAsst) {
+                      onRegenerate && onRegenerate('openai', 'claude-full', nextAsst.id);
+                    }
+                  }} />
                 ) : <MarkdownRenderer content={msg.content} />}
                 </div>
                 {msg.role === 'assistant' && hoveredMsg === msg.id && (
                   <div className="msg-actions">
                     <button onClick={() => navigator.clipboard.writeText(msg.content)}>copy</button>
-                    <button onClick={() => {
-                      onRegenerate && onRegenerate('openai', 'claude-full', msg.id);
-                      // After a moment, load versions
-                      setTimeout(() => { if (msg.version_group) loadVersions(msg); }, 3000);
-                    }}>retry</button>
+                    <button onClick={() => onRegenerate && onRegenerate('openai', 'claude-full', msg.id)}>retry</button>
                   </div>
                 )}
                 {msg.role === 'user' && hoveredMsg === msg.id && (
@@ -233,7 +153,8 @@ function EditableContent({ msg, onEdited }) {
       });
       const data = await res.json();
       setEditing(false);
-      if (onEdited) onEdited(msg.id, data.id, data.versionGroup, data.replyVersion);
+      msg.content = text.trim();
+      if (onEdited) onEdited(msg.id, data.id);
     } catch (err) { console.error(err); }
   };
 
