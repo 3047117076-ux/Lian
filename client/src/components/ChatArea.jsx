@@ -31,12 +31,17 @@ export default function ChatArea({
     }
   };
 
-  // Auto-load versions for messages with version_group
+  // Auto-load versions when messages change
+  const versionsLoaded = useRef(new Set());
   useEffect(() => {
     if (messages.length === 0) return;
-    const seen = new Set();
-    messages.forEach(m => { if (m.version_group && !seen.has(m.version_group)) { seen.add(m.version_group); loadVersions(m.version_group); } });
-  }, [currentSessionId]);
+    messages.forEach(m => {
+      if (m.version_group && !versionsLoaded.current.has(m.version_group)) {
+        versionsLoaded.current.add(m.version_group);
+        loadVersions(m.version_group);
+      }
+    });
+  }, [messages.length, currentSessionId]);
 
   const switchVersion = (vg, dir) => {
     const info = versions[vg];
