@@ -91,17 +91,16 @@ export default function ChatArea({
 
   const handleRetry = (msg) => {
     onRegenerate && onRegenerate('openai', 'claude-full', msg.id);
-    if (msg.version_group) setTimeout(() => loadVersions(msg.version_group), 4000);
+    if (msg.version_group) setTimeout(() => loadVersions(msg.version_group), 8000);
   };
 
   const handleEdit = (oldId) => {
     let idx = messages.findIndex(m => m.id === oldId);
     const nextAsst = idx >= 0 ? messages.slice(idx + 1).find(m => m.role === 'assistant') : null;
     if (nextAsst) {
-      onRegenerate && onRegenerate('openai', 'claude-full', nextAsst.id);
-      // Reload versions after new reply appears
       const vg = messages.find(m => m.id === oldId)?.version_group || oldId;
-      setTimeout(() => loadVersions(vg), 4000);
+      onRegenerate && onRegenerate('openai', 'claude-full', nextAsst.id);
+      setTimeout(() => loadVersions(vg), 8000);
     }
   };
 
